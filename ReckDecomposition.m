@@ -21,22 +21,22 @@
 
 (* Abort for old, unsupported versions of Mathematica *)
 If[$VersionNumber < 10,
-  Print["MaTeX requires Mathematica 10.0 or later."];
+  Print["ReckDecomposition requires Mathematica 10.0 or later."];
   Abort[]
 ];
 
 
-BeginPackage["MaTeX`"];
+BeginPackage["QM`ReckDecomposition`"];
 
 ReckParametersFromMatrix::usage = "\
-ReckParametersFromMatrix[matrix] returns a list of associations. Each element of this list corresponds to a U(2) matix acting on a single pair of modes, or a single-mode phase shifter matrix.";
+ReckParametersFromMatrix[matrix] returns a list of associations. Each element of this list corresponds to a U(2) matrix acting on a single pair of modes, or a single-mode phase shifter matrix.";
 ReckParametersToMatrix::usage = "\
 ReckParametersToMatrix[params] converts a list of associations to the corresponding matrix. It converts each association to the corresponding matrix, and then multiplies all the resulting matrices together IN REVERSE ORDER.";
 ReckParametersToMatrices::usage = "
 ReckParametersToMatrices[params] converts a list of associations to the list of matrices corresponding to the associations in the list.";
 
 
-Begin["`Private"];
+Begin["`Private`"];
 
 
 directSum[m1_?MatrixQ, m2_?MatrixQ] := ArrayFlatten[{
@@ -46,11 +46,17 @@ directSum[m1_?MatrixQ, m2_?MatrixQ] := ArrayFlatten[{
 
 
 ClearAll[u2GeneralMatrix];
-u2GeneralMatrix[label_ : ""] := With[{
-  t = ToExpression["t" ~~ ToString@label],
-  r = ToExpression["r" ~~ ToString@label],
-  \[Phi] = ToExpression["\[Phi]" ~~ ToString@label]
-},
+u2GeneralMatrix[label_ : ""] := If[label == "",
+  With[{
+    t = ToExpression[Context[a] <> "t" <> ToString@label],
+    r = ToExpression[Context[a] <> "r" <> ToString@label],
+    \[Phi] = ToExpression[Context[a] <> "\[Phi]" <> ToString@label]
+  },
+    {
+      {t, E^(I \[Phi]) r},
+      {-E^(-I \[Phi])r, t}
+    }
+  ],
   {
     {t, E^(I \[Phi]) r},
     {-E^(-I \[Phi])r, t}
@@ -70,6 +76,7 @@ u2Transformation[p_, q_, dim_, label_ : ""] := ReplacePart[IdentityMatrix@dim,
 ClearAll[ReckParametersToMatrices];
 ReckParametersToMatrices[params : {Association[__]..}, dim_Integer] := Table[
   If[KeyExistsQ[assoc, "modes"],
+    (*Print[u2Transformation[Sequence @@ assoc["modes"], dim]/.{r -> 1231231}];*)
     u2Transformation[Sequence @@ assoc["modes"], dim] /. {
       r -> assoc["r"],
       t -> assoc["t"],
