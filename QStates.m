@@ -30,7 +30,8 @@ QTensorProduct[state1, state2, ...] gives an iQState object representing the sta
 
 iQDensityMatrix::usage = "\
 iQDensityMatrix[tp, basis] is the internal representation of the density matrix with matrix *tp* over the basis *basis*.
-If the basis is a tensor product basis (that is, its ArrayDepth is 2), than *tp* will have an ArrayDepth equal to twice the number of elements of basis, and thus also twice the ArrayDepth of the corresponding iQState.\
+If the basis is a tensor product basis (that is, its ArrayDepth is 2), than *tp* will have an ArrayDepth equal to twice the number of elements of basis, and thus also twice the ArrayDepth of the corresponding iQState.
+IMPORTANT: the tensor product structure of *tp* is in row1-col1-row2-col2-... order, meaning that for example the element tp[[1, 2, 3, 4]] is the element corresponding at the row (1, 3) and column (2, 4).\
 ";
 
 QStateToDensityMatrix::usage = "\
@@ -48,6 +49,12 @@ QDMFromMatrix[matrix, basis] converts the 2D matrix *matrix* into the tensor pro
 QPartialTrace::usage = "\
 QPartialTrace[dm, k] computes the partial trace with respect to the *k*-th basis of the density matrix *dm*.\
 ";
+
+QEvolve::usage = "\
+QEvolve[qstate, evolutionMatrix] returs the state *qstate* evolved according to the specified *evolutionMatrix*.\
+";
+
+TensorProductToMatrix::usage = "TensorProductToMatrix[asd]";
 
 Begin["`Private`"];
 
@@ -98,13 +105,36 @@ QTensorProduct[states__iQState] := With[{
 ];
 
 
-QStateToDensityMatrix[iQState[amps_, basis_]] := iQDensityMatrix[
-  TensorProduct[amps, Conjugate[amps]],
-  basis
+QStateToDensityMatrix[iQState[amps_, basis_]] := With[{len = Length @ basis},
+  iQDensityMatrix[
+    Transpose[
+      TensorProduct[amps, Conjugate[amps]],
+      Join[Range[1, 2 * len - 1, 2], Range[2, 2 * len, 2]]
+    ],
+    basis
+  ]
 ];
 
+(* TensorProductToMatrix assumes that the tensor structure is of the form row,column,row,column,... *)
+TensorProductToMatrix[tp_] := With[{len = Length @ Dimensions @ tp},
+  Flatten[tp,
+    {
+      Range[1, len - 1, 2],
+      Range[2, len, 2]
+    }
+  ]
+];
 (* This should match when the basis is a tensor product basis, for example if `basis = {{0, 1}, {up, down}}` *)
-QDM2Matrix[iQDensityMatrix[tp_, basis : {{__}..}]] := With[{
+QDM2Matrix[iQDensityMatrix[tp_, basis : {{__}..}]] := With[{len = Length @ basis},
+  Flatten[
+    tp,
+    {
+      Range[1, 2 * len - 1, 2],
+      Range[2, 2 * len, 2]
+    }
+  ]
+];
+(*QDM2Matrix[iQDensityMatrix[tp_, basis : {{__}..}]] := With[{
   basisProducts = Level[#, {-2}]& @
       Outer[List, Sequence @@ (Range @* Length /@ basis)]
 },
@@ -113,18 +143,39 @@ QDM2Matrix[iQDensityMatrix[tp_, basis : {{__}..}]] := With[{
     {rowIdx, basisProducts},
     {colIdx, basisProducts}
   ]
-];
+];*)
 (* This is the case for simple basis states, like `basis = {-1, 0, 1}` *)
 QDM2Matrix[iQDensityMatrix[tp_, basis : {__}]] := tp;
 
 
-QDMFromMatrix[matrix_List, basis : {{__}..}] := ArrayReshape[matrix, Length /@ basis];
-QDMFromMatrix[matrix_List, basis : {__}] := matrix;
+QDMFromMatrix[matrix_List, basis : {{__}..}] := iQDensityMatrix[
+  Transpose[
+    ArrayReshape[matrix, Join[#, #]&[Length /@ basis]],
+    Join[
+      Range[1, 2 * Length @ basis - 1, 2],
+      Range[2, 2 * Length @ basis, 2]
+    ]
+  ],
+  basis
+];
+QDMFromMatrix[matrix_List, basis : {__}] := iQDensityMatrix[matrix, basis];
 
 
+iQDensityMatrix::wrongDims = "The structure of *tp* is not compatible with that of *matrix*.";
 iQDensityMatrix /: MatrixForm[dm_iQDensityMatrix] := MatrixForm[
   QDM2Matrix @ dm
 ];
+iQDensityMatrix /: Dot[iQDensityMatrix[tp_, basis_], matrix_?MatrixQ] := If[
+(* If the product of the dimensions of the bases of the density matrix does not match the dimensions of *matrix* the product cannot be done. *)
+  Times @@ Length /@ basis != Length @ matrix,
+  Message[iQDensityMatrix::wrongDims],
+(* otherwise, carry on with the computation *)
+  With[{
+    tpm = TensorProductToMatrix[tp]
+  },
+    QDMFromMatrix[tpm . matrix, basis]
+  ]
+]
 
 
 QPartialTrace::wrongDims =
@@ -144,6 +195,13 @@ QPartialTrace[iQDensityMatrix[state_, basis : {{__}..}], k_Integer] := Which[
       Delete[basis, k]
     ]
   ]
+];
+
+
+QEvolve::dimMismatch = "The input matrix and the basis of the QState must have the same dimension.";
+QEvolve[iQState[amps_, basis_], matrix_List] := iQState[
+  ArrayReshape[matrix.Flatten[amps], Length /@ basis],
+  basis
 ];
 
 
