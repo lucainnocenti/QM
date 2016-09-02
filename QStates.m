@@ -14,7 +14,7 @@ ClearAll @@ Names["QM`QStates`*"];
 
 
 QState::usage = "\
-QState[state] gives the internal iQState representation corresponding to state.";
+QState[state] gives thea internal iQState representation corresponding to state.";
 
 iQState::usage = "\
 iQState[amplitudes, basis] is the internal representation of a quantum state in ket representation.
