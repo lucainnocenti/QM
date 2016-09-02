@@ -233,7 +233,13 @@ QEvolve[iQDensityMatrix[tp_, basis_], u_?MatrixQ] := With[{
   ]
 ];
 QEvolve[iQDensityMatrix[tp_, basis_], u_?TensorQ] := If[
-(* If the tensor product structures are compatible, the products can be done without converting back and forth to matrices *)
+  Dimensions @ u != Dimensions @ tp,
+  Message[QEvolve::dimMismatch],
+  QEvolve[iQDensityMatrix[tp, basis], TensorProductToMatrix[u]]
+];
+(* The implementation where we directly act on the tensor indices turns out to be much slower than just converting back to matrices
+QEvolve[iQDensityMatrix[tp_, basis_], u_?TensorQ] := If[
+*)(* If the tensor product structures are compatible, the products can be done without converting back and forth to matrices *)(*
   Dimensions @ u == Dimensions @ tp,
   With[{
     basisDim = Length @ basis
@@ -258,6 +264,7 @@ QEvolve[iQDensityMatrix[tp_, basis_], u_?TensorQ] := If[
     ]
   ]
 ];
+*)
 
 
 QTr[tp_] := With[{
