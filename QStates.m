@@ -217,9 +217,46 @@ QPartialTrace[iQDensityMatrix[state_, basis : {{__}..}], k_Integer] := Which[
 
 
 QEvolve::dimMismatch = "The input matrix and the basis of the QState must have the same dimension.";
-QEvolve[iQState[amps_, basis_], matrix_List] := iQState[
-  ArrayReshape[matrix.Flatten[amps], Length /@ basis],
+QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] := iQState[
+  ArrayReshape[
+    matrix . Flatten[amps],
+    Length /@ basis
+  ],
   basis
+];
+QEvolve[iQDensityMatrix[tp_, basis_], u_?MatrixQ] := With[{
+  tpMatrix = TensorProductToMatrix[tp]
+},
+  QDMFromMatrix[
+    u . tpMatrix . ConjugateTranspose[u],
+    basis
+  ]
+];
+QEvolve[iQDensityMatrix[tp_, basis_], u_?TensorQ] := If[
+(* If the tensor product structures are compatible, the products can be done without converting back and forth to matrices *)
+  Dimensions @ u == Dimensions @ tp,
+  With[{
+    basisDim = Length @ basis
+  },
+    iQDensityMatrix[
+      Transpose[
+        TensorContract[
+          TensorProduct[
+            u, tp, Conjugate[u]
+          ],
+          Join[
+            {2 #, 2 basisDim + 2 # - 1}& /@ Range[basisDim],
+            {2 basisDim + 2 #, 4 basisDim + 2 #}& /@ Range[basisDim]
+          ]
+        ],
+        Join[
+          Range[1, 2 basisDim - 1, 2],
+          Range[2, 2 basisDim, 2]
+        ]
+      ],
+      basis
+    ]
+  ]
 ];
 
 
@@ -241,10 +278,13 @@ QTr[tp_] := With[{
   ]
 ];
 
+
 QRenormalize[iQDensityMatrix[tp_, basis_]] := iQDensityMatrix[
   tp / QTr[tp],
   basis
 ];
+
+PureStateQ[iQDensityMatrix[tp_, basis_]] := a;
 
 
 (* Protect all package symbols *)
