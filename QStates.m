@@ -14,7 +14,7 @@ ClearAll @@ Names["QM`QStates`*"];
 
 
 QState::usage = "\
-QState[state] gives thea internal iQState representation corresponding to state.";
+QState[state] gives the internal iQState representation corresponding to state.";
 
 iQState::usage = "\
 iQState[amplitudes, basis] is the internal representation of a quantum state in ket representation.
@@ -53,6 +53,11 @@ QPartialTrace[dm, k] computes the partial trace with respect to the *k*-th basis
 QEvolve::usage = "\
 QEvolve[qstate, evolutionMatrix] returs the state *qstate* evolved according to the specified *evolutionMatrix*.\
 ";
+
+QRenormalize::usage = "\
+blabla
+";
+QTr;
 
 TensorProductToMatrix::usage = "TensorProductToMatrix[asd]";
 
@@ -165,17 +170,27 @@ iQDensityMatrix::wrongDims = "The structure of *tp* is not compatible with that 
 iQDensityMatrix /: MatrixForm[dm_iQDensityMatrix] := MatrixForm[
   QDM2Matrix @ dm
 ];
+
 iQDensityMatrix /: Dot[iQDensityMatrix[tp_, basis_], matrix_?MatrixQ] := If[
 (* If the product of the dimensions of the bases of the density matrix does not match the dimensions of *matrix* the product cannot be done. *)
   Times @@ Length /@ basis != Length @ matrix,
   Message[iQDensityMatrix::wrongDims],
 (* otherwise, carry on with the computation *)
-  With[{
-    tpm = TensorProductToMatrix[tp]
-  },
-    QDMFromMatrix[tpm . matrix, basis]
-  ]
-]
+  QDMFromMatrix[TensorProductToMatrix[tp] . matrix, basis]
+];
+iQDensityMatrix /: Dot[matrix_?MatrixQ, iQDensityMatrix[tp_, basis_]] := If[
+(* If the product of the dimensions of the bases of the density matrix does not match the dimensions of *matrix* the product cannot be done. *)
+  Times @@ Length /@ basis != Length @ matrix,
+  Message[iQDensityMatrix::wrongDims],
+(* otherwise, carry on with the computation *)
+  QDMFromMatrix[matrix . TensorProductToMatrix[tp], basis]
+];
+(*iQDensityMatrix /: Dot[matricesBefore__?MatrixQ, iQDensityMatrix[tp_, basis_], matricesAfter__?MatrixQ] := QDMFromMatrix[
+  Dot @@ {matricesBefore} . TensorProductToMatrix[tp] . Dot @@ {matricesAfter},
+  basis
+];*)
+
+iQDensityMatrix /: Tr[iQDensityMatrix[tp_, _]] := QTr[tp];
 
 
 QPartialTrace::wrongDims =
@@ -189,9 +204,12 @@ QPartialTrace[iQDensityMatrix[state_, basis : {{__}..}], k_Integer] := Which[
   },
     iQDensityMatrix[
       Transpose[state,
-        Insert[Insert[Range@numDims, numDims - 1, k], numDims,
-          k + numDims / 2] // Most // Most
-      ] // Map[Tr, #, {2 Length@basis - 2}] &,
+        Insert[
+          Range[numDims],
+          Unevaluated[Sequence @@ Range[numDims - 1, numDims]],
+          2 * k - 1
+        ] // Most // Most
+      ] // Map[Tr, #, {numDims - 2}] &,
       Delete[basis, k]
     ]
   ]
@@ -201,6 +219,30 @@ QPartialTrace[iQDensityMatrix[state_, basis : {{__}..}], k_Integer] := Which[
 QEvolve::dimMismatch = "The input matrix and the basis of the QState must have the same dimension.";
 QEvolve[iQState[amps_, basis_], matrix_List] := iQState[
   ArrayReshape[matrix.Flatten[amps], Length /@ basis],
+  basis
+];
+
+
+QTr[tp_] := With[{
+  lenDims = Dimensions[tp][[Range[1, Length @ Dimensions @ tp - 1, 2]]]
+},
+  Function[indicesVars,
+    Sum[
+      tp[[Sequence @@ (Sequence @@ {#, #} & /@ indicesVars)]],
+      Evaluate[
+        Sequence @@ MapIndexed[
+          {#1, lenDims[[First @ #2]]}&,
+          indicesVars
+        ]
+      ]
+    ]
+  ][
+    Array[k, Length @ lenDims]
+  ]
+];
+
+QRenormalize[iQDensityMatrix[tp_, basis_]] := iQDensityMatrix[
+  tp / QTr[tp],
   basis
 ];
 
