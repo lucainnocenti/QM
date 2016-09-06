@@ -57,7 +57,10 @@ QEvolve[qstate, evolutionMatrix] returs the state *qstate* evolved according to 
 QRenormalize::usage = "\
 blabla
 ";
+
 QTr;
+
+PureStateQ;
 
 TensorProductToMatrix::usage = "TensorProductToMatrix[asd]";
 
@@ -71,53 +74,105 @@ Begin["`Private`"];
 fillAmps[amps_Association, basis_List] :=
     If[KeyExistsQ[amps, #], amps[#], 0] & /@ basis;
 
-
-QState::missingAmps = "The amplitudes have not been specified.";
-QState::mismatchAmps = "\
-Some basis labels specified as amplitudes are not included in the \
-list of basis states labels.";
-QState[state_List] := QState[Association@state];
-QState[state_Association] := Which[
-(* A list of amplitudes must necessarily be provided *)
-  ! KeyExistsQ[state, "Amplitudes"],
-  Message[QState::missingAmps],
-(* If no basis state is provided, the labels given as "Amplitudes" are used incstead *)
-  ! KeyExistsQ[state, "BasisStates"],
-  iQState[Values@state["Amplitudes"], Keys@state["Amplitudes"]],
-(* The labels used to specify the amplitudes must be included in the ones specified for the basis *)
-  ! SubsetQ[state["BasisStates"], Keys@state["Amplitudes"]],
-  Message[QState::mismatchAmps],
+qstateParseAmps[amps_] := Which[
+  (* return error and abort if no amplitude is provided *)
+  amps === None, Message[QState::ampsMissing]; Abort[],
+  (* return error and abort if something else than an association is given *)
+  Head@amps =!= Association, Message[QState::ampsMustBeAss]; Abort[],
+  (* otherwise, the Association amps is given back, with the labels converted to strings *)
   True,
-  iQState[fillAmps[state["Amplitudes"], state["BasisStates"]],
-    state["BasisStates"]]
+  KeyMap[ToString, amps]
+];
+qstateParseBasis[basis_] := Which[
+  basis === None, None,
+  Head@basis =!= List, Message[QState::basisMustBeList]; Abort[],
+  True, ToString /@ basis
+];
+
+QState::ampsMissing = "The input argument \"Amplitudes\" is mandatory.";
+QState::ampsMustBeAss= "The input argument \"Amplitudes\" must be an Association."
+QState::mismatchAmps = "Some basis labels specified as amplitudes are not included in the list of basis states labels.";
+Options[QState] = {"Amplitudes" -> None, "BasisStates" -> None};
+
+(* QState does not handle direct specification of tensor product bases, for now *)
+QState[opts : OptionsPattern[]] := With[{
+  amps = qstateParseAmps[OptionValue @ "Amplitudes"],
+  basis = qstateParseBasis[OptionValue @ "BasisStates"]
+},
+  Which[
+  (* If no basis state is provided, the labels given as "Amplitudes" are used instead *)
+    basis === None,
+    iQState[
+      Developer`ToPackedArray @ Values @ amps,
+      {Keys @ amps}
+    ],
+  (* The labels used to specify the amplitudes must be included in the ones specified for the basis *)
+    ! SubsetQ[basis, Keys @ amps],
+    Message[QState::mismatchAmps],
+  (* Otherwise, if both amplitudes and basis are provided and are compatible with each other, use the latter to complete the former *)
+    True,
+    iQState[
+      Developer`ToPackedArray[fillAmps[amps, basis]],
+      If[
+        TensorRank[basis] == 1,
+        {basis},
+        basis
+      ]
+    ]
+  ]
 ];
 
 
-QTensorProduct[iQState[amps1_, basis1_], iQState[amps2_, basis2_]] := iQState[
+(* iQStateTP stores the amplitudes in a tensor product structure, i.e. as what you get issuing TensorProduct on the single bases *)
+
+(* If a single argument is provided, nothing happens *)
+QTensorProduct[something_] := something;
+QTensorProduct[iQStateTP[amps1_, basis1_], iQStateTP[amps2_, basis2_]] := iQStateTP[
   TensorProduct[amps1, amps2],
 (* This use of Level is problematic if the basis elements have nested structures, for example if
    basis1 = {{0, 1}, {Cos[x], up}}. The basis elements should therefore be restricted to be simple String objects.*)
   Level[#, {-2}]& @ {basis1, basis2}
 ];
-QTensorProduct[states__iQState] := With[{
+
+QTensorProduct[states__iQStateTP] := With[{
   amps = {states}[[All, 1]],
   bases = {states}[[All, 2]]
 },
-  iQState[
+  iQStateTP[
     TensorProduct @@ amps,
     bases
   ]
 ];
 
+QTensorProduct[iQState[amps1_, basis1_], iQState[amps2_, basis2_]] := iQState[
+  Flatten @ KroneckerProduct[amps1, amps2],
+(* this Join should always work because if non tensor-product bases should have the form {{whatever}} (with two braces) *)
+  Join[basis1, basis2]
+];
 
-QStateToDensityMatrix[iQState[amps_, basis_]] := With[{len = Length @ basis},
-  iQDensityMatrix[
+QTensorProduct[states__iQState] := With[{
+  amps = {states}[[All, 1]],
+  bases = Join @@ {states}[[All, 2]]
+},
+  iQState[
+    Flatten[KroneckerProduct @@ amps],
+    bases
+  ]
+];
+
+
+QStateToDensityMatrix[iQStateTP[amps_, basis_]] := With[{len = Length @ basis},
+  iQDensityMatrixTP[
     Transpose[
       TensorProduct[amps, Conjugate[amps]],
       Join[Range[1, 2 * len - 1, 2], Range[2, 2 * len, 2]]
     ],
     basis
   ]
+];
+QStateToDensityMatrix[iQState[amps_, basis_]] := iQDensityMatrix[
+  KroneckerProduct[Conjugate[amps], amps],
+  basis
 ];
 
 (* TensorProductToMatrix assumes that the tensor structure is of the form row,column,row,column,... *)
@@ -129,16 +184,21 @@ TensorProductToMatrix[tp_] := With[{len = Length @ Dimensions @ tp},
     }
   ]
 ];
-(* This should match when the basis is a tensor product basis, for example if `basis = {{0, 1}, {up, down}}` *)
-QDM2Matrix[iQDensityMatrix[tp_, basis : {{__}..}]] := With[{len = Length @ basis},
-  Flatten[
-    tp,
-    {
-      Range[1, 2 * len - 1, 2],
-      Range[2, 2 * len, 2]
-    }
+TensorProductFromMatrix[matrix_, basis : {{__}..}] := Transpose[
+  ArrayReshape[
+    matrix,
+    Join[#, #] &[Length /@ basis]
+  ],
+  Join[
+    Range[1, 2 * Length @ basis - 1, 2],
+    Range[2, 2 * Length @ basis, 2]
   ]
 ];
+
+
+(* QDM2Matrix converts an iQDensityMatrixTP, in which the amplitudes are stored in nested lists output of TensorProduct operations, to a regular matrix. *)
+(* This should match when the basis is a tensor product basis, for example if `basis = {{0, 1}, {up, down}}` *)
+QDM2Matrix[iQDensityMatrixTP[tp_, basis : {{__}..}]] := TensorProductToMatrix[tp];
 (*QDM2Matrix[iQDensityMatrix[tp_, basis : {{__}..}]] := With[{
   basisProducts = Level[#, {-2}]& @
       Outer[List, Sequence @@ (Range @* Length /@ basis)]
@@ -150,10 +210,11 @@ QDM2Matrix[iQDensityMatrix[tp_, basis : {{__}..}]] := With[{len = Length @ basis
   ]
 ];*)
 (* This is the case for simple basis states, like `basis = {-1, 0, 1}` *)
-QDM2Matrix[iQDensityMatrix[tp_, basis : {__}]] := tp;
+QDM2Matrix[iQDensityMatrixTP[tp_, basis : {__}]] := tp;
 
 
-QDMFromMatrix[matrix_List, basis : {{__}..}] := iQDensityMatrix[
+(* QDMFromMatrix produces the nested TensorProduct structure from a regular matrix and the corresponding bases, and embeds as an iQDensityMatrixTP object *)
+QDMFromMatrix[matrix_List, basis : {{__}..}] := iQDensityMatrixTP[
   Transpose[
     ArrayReshape[matrix, Join[#, #]&[Length /@ basis]],
     Join[
@@ -163,25 +224,26 @@ QDMFromMatrix[matrix_List, basis : {{__}..}] := iQDensityMatrix[
   ],
   basis
 ];
-QDMFromMatrix[matrix_List, basis : {__}] := iQDensityMatrix[matrix, basis];
+QDMFromMatrix[matrix_List, basis : {__}] := iQDensityMatrixTP[matrix, basis];
 
 
-iQDensityMatrix::wrongDims = "The structure of *tp* is not compatible with that of *matrix*.";
-iQDensityMatrix /: MatrixForm[dm_iQDensityMatrix] := MatrixForm[
+(* ===================== UPVALUES FOR iQDensityMatrixTP ======================= *)
+iQDensityMatrixTP::wrongDims = "The structure of *tp* is not compatible with that of *matrix*.";
+iQDensityMatrixTP /: MatrixForm[dm_iQDensityMatrixTP] := MatrixForm[
   QDM2Matrix @ dm
 ];
 
-iQDensityMatrix /: Dot[iQDensityMatrix[tp_, basis_], matrix_?MatrixQ] := If[
+iQDensityMatrixTP /: Dot[iQDensityMatrixTP[tp_, basis_], matrix_?MatrixQ] := If[
 (* If the product of the dimensions of the bases of the density matrix does not match the dimensions of *matrix* the product cannot be done. *)
   Times @@ Length /@ basis != Length @ matrix,
-  Message[iQDensityMatrix::wrongDims],
+  Message[iQDensityMatrixTP::wrongDims],
 (* otherwise, carry on with the computation *)
   QDMFromMatrix[TensorProductToMatrix[tp] . matrix, basis]
 ];
-iQDensityMatrix /: Dot[matrix_?MatrixQ, iQDensityMatrix[tp_, basis_]] := If[
+iQDensityMatrixTP /: Dot[matrix_?MatrixQ, iQDensityMatrixTP[tp_, basis_]] := If[
 (* If the product of the dimensions of the bases of the density matrix does not match the dimensions of *matrix* the product cannot be done. *)
   Times @@ Length /@ basis != Length @ matrix,
-  Message[iQDensityMatrix::wrongDims],
+  Message[iQDensityMatrixTP::wrongDims],
 (* otherwise, carry on with the computation *)
   QDMFromMatrix[matrix . TensorProductToMatrix[tp], basis]
 ];
@@ -190,20 +252,53 @@ iQDensityMatrix /: Dot[matrix_?MatrixQ, iQDensityMatrix[tp_, basis_]] := If[
   basis
 ];*)
 
-iQDensityMatrix /: Tr[iQDensityMatrix[tp_, _]] := QTr[tp];
+iQDensityMatrixTP /: Tr[iQDensityMatrixTP[tp_, _]] := QTr[tp];
+
+(* ===================== UPVALUES FOR iQDensityMatrix ========================= *)
+iQDensityMatrix /: MatrixForm[iQDensityMatrix[dm_, _]] := MatrixForm[dm];
+iQDensityMatrix /: Tr[iQDensityMatrix[dm_, _]] := Tr[dm];
+iQDensityMatrix /: Dot[matrix_?MatrixQ, iQDensityMatrix[dm_, basis_]] := iQDensityMatrix[
+  matrix . dm,
+  basis
+];
+iQDensityMatrix /: Dot[iQDensityMatrix[dm_, basis_], matrix_?MatrixQ] := iQDensityMatrix[
+  dm . matrix,
+  basis
+];
+iQDensityMatrix /: Dot[iQDensityMatrix[dm1_, basis1_], iQDensityMatrix[dm2_, basis2_]] := Which[
+  basis1 =!= basis2,
+  Message[iQDensityMatrix::basesMismatch]; Abort[],
+  True,
+  iQDensityMatrix[
+    dm1 . dm2,
+    basis1
+  ]
+];
+
 
 
 QPartialTrace::wrongDims =
     "The tensor product structure is not compatible with the specified \
 index over which to do the partial trace.";
-QPartialTrace[iQDensityMatrix[state_, basis : {{__}..}], k_Integer] := Which[
+QPartialTrace[iQDensityMatrix[dm_, basis_], k_Integer] /; Length @ basis == 1 := Tr[dm];
+QPartialTrace[iQDensityMatrix[dm_, basis_], k_Integer] := With[{
+  qdmTP = QPartialTrace[QDMFromMatrix[dm, basis], k]
+},
+  iQDensityMatrix[
+    TensorProductToMatrix[First @ qdmTP],
+    qdmTP[[2]]
+  ]
+];
+
+QPartialTrace[iQDensityMatrixTP[tp_, basis : {{__}..}], k_Integer] /; Length @ basis == 1 := QTr[tp];
+QPartialTrace[iQDensityMatrixTP[tp_, basis : {{__}..}], k_Integer] := Which[
   ! (1 <= k <= Length[basis]), Message[QPartialTrace::wrongDims],
   True,
   With[{
-    numDims = Length@Dimensions@state
+    numDims = Length@Dimensions@tp
   },
-    iQDensityMatrix[
-      Transpose[state,
+    iQDensityMatrixTP[
+      Transpose[tp,
         Insert[
           Range[numDims],
           Unevaluated[Sequence @@ Range[numDims - 1, numDims]],
@@ -217,14 +312,25 @@ QPartialTrace[iQDensityMatrix[state_, basis : {{__}..}], k_Integer] := Which[
 
 
 QEvolve::dimMismatch = "The input matrix and the basis of the QState must have the same dimension.";
-QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] := iQState[
+QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] /; Length @ matrix == Length @ amps := iQState[
+  matrix . amps,
+  basis
+];
+
+QEvolve[iQStateTP[amps_, basis_], matrix_?MatrixQ] := iQStateTP[
   ArrayReshape[
     matrix . Flatten[amps],
     Length /@ basis
   ],
   basis
 ];
-QEvolve[iQDensityMatrix[tp_, basis_], u_?MatrixQ] := With[{
+
+QEvolve[iQDensityMatrix[matrix_, basis_], u_?MatrixQ] := iQDensityMatrix[
+  u . matrix . ConjugateTranspose[u],
+  basis
+];
+
+QEvolve[iQDensityMatrixTP[tp_, basis_], u_?MatrixQ] := With[{
   tpMatrix = TensorProductToMatrix[tp]
 },
   QDMFromMatrix[
@@ -232,10 +338,10 @@ QEvolve[iQDensityMatrix[tp_, basis_], u_?MatrixQ] := With[{
     basis
   ]
 ];
-QEvolve[iQDensityMatrix[tp_, basis_], u_?TensorQ] := If[
+QEvolve[iQDensityMatrixTP[tp_, basis_], u_?TensorQ] := If[
   Dimensions @ u != Dimensions @ tp,
   Message[QEvolve::dimMismatch],
-  QEvolve[iQDensityMatrix[tp, basis], TensorProductToMatrix[u]]
+  QEvolve[iQDensityMatrixTP[tp, basis], TensorProductToMatrix[u]]
 ];
 (* The implementation where we directly act on the tensor indices turns out to be much slower than just converting back to matrices
 QEvolve[iQDensityMatrix[tp_, basis_], u_?TensorQ] := If[
@@ -267,6 +373,7 @@ QEvolve[iQDensityMatrix[tp_, basis_], u_?TensorQ] := If[
 *)
 
 
+(* QTr handles the trace of a density matrix in TensorProduct nested list form *)
 QTr[tp_] := With[{
   lenDims = Dimensions[tp][[Range[1, Length @ Dimensions @ tp - 1, 2]]]
 },
@@ -286,12 +393,20 @@ QTr[tp_] := With[{
 ];
 
 
-QRenormalize[iQDensityMatrix[tp_, basis_]] := iQDensityMatrix[
+QRenormalize[iQDensityMatrixTP[tp_, basis_]] := iQDensityMatrixTP[
   tp / QTr[tp],
   basis
 ];
+QRenormalize[iQDensityMatrix[matrix_, basis_]] := iQDensityMatrix[
+  matrix / Tr[matrix],
+  basis
+];
+QRenormalize[iQState[amps_, basis_]] := iQState[
+  amps / Norm[amps],
+  basis
+];
 
-PureStateQ[iQDensityMatrix[tp_, basis_]] := a;
+PureStateQ[iQDensityMatrix[matrix_, basis_]] := Chop[N @ Tr[matrix . matrix]] == 1;
 
 
 (* Protect all package symbols *)
