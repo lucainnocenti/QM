@@ -310,6 +310,12 @@ QPartialTrace[iQDensityMatrixTP[tp_, basis : {{__}..}], k_Integer] := Which[
   ]
 ];
 
+QPartialTrace[matrix_, basisLengths_, k_Integer] := First@QPartialTrace[
+  iQDensityMatrix[
+    matrix, Range[0, # - 1] & /@ basisLengths
+  ],
+  k
+];
 
 QEvolve::dimMismatch = "The input matrix and the basis of the QState must have the same dimension.";
 QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] /; Length @ matrix == Length @ amps := iQState[
