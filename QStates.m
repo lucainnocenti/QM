@@ -6,7 +6,7 @@ If[$VersionNumber < 10,
   Abort[]
 ];
 
-BeginPackage["QM`QStates`"];
+BeginPackage["QM`QStates`", "MaTeX`"];
 
 (* Unprotect all package symbols *)
 Unprotect @@ Names["QM`QStates`*"];
@@ -22,6 +22,9 @@ iQState[amplitudes, basis] is the internal representation of a quantum state in 
   *basis*: list of labels for the basis states. Each label can have any Head, but not be a List of objects, or elements with nested heads (that is, it must have an ArrayDepth equal to 2).
     If the ArrayDepth of *basis* is greater than 2 (equal to 3), the iQState is assumed to represent a state in a tensor product basis, and the *amplitudes* should correspondingly have an ArrayDepth equal to the Length of *basis*.\
 ";
+$iQStateAutoRenormalize;
+$iQStatePrettyPrint;
+$iQStatePrettyPrintMagnification;
 
 QTensorProduct::usage = "\
 QTensorProduct[state1, state2, ...] gives an iQState object representing the state obtained through tensor product of state1 and state2.
@@ -58,9 +61,7 @@ QRenormalize::usage = "\
 blabla
 ";
 
-QTr;
-
-PureStateQ;
+PureStateQ::usage = "PureStateQ[state] returns True if state is pure, checking if the trace of the square of state is equal to 1.";
 
 TensorProductToMatrix::usage = "TensorProductToMatrix[asd]";
 
@@ -75,13 +76,16 @@ fillAmps[amps_Association, basis_List] :=
     If[KeyExistsQ[amps, #], amps[#], 0] & /@ basis;
 
 qstateParseAmps[amps_] := Which[
-  (* return error and abort if no amplitude is provided *)
+(* return error and abort if no amplitude is provided *)
   amps === None, Message[QState::ampsMissing]; Abort[],
-  (* return error and abort if something else than an association is given *)
-  Head@amps =!= Association, Message[QState::ampsMustBeAss]; Abort[],
-  (* otherwise, the Association amps is given back, with the labels converted to strings *)
-  True,
-  KeyMap[ToString, amps]
+(* return error and abort if something else than an association is given *)
+(* Head@amps =!= Association, Message[QState::ampsMustBeAss]; Abort[], *)
+(* otherwise, the Association amps is given back, with the labels converted to strings *)
+  Head @ amps === Association,
+  KeyMap[ToString, amps],
+  Head @ amps === List,
+  amps,
+  True, Message[QState::ampsUnrecognized]; Abort[]
 ];
 qstateParseBasis[basis_] := Which[
   basis === None, None,
@@ -90,25 +94,39 @@ qstateParseBasis[basis_] := Which[
 ];
 
 QState::ampsMissing = "The input argument \"Amplitudes\" is mandatory.";
-QState::ampsMustBeAss= "The input argument \"Amplitudes\" must be an Association."
+QState::ampsMustBeAss = "The input argument \"Amplitudes\" must be an Association.";
+QState::ampsUnrecognized = "Unrecognized format for the amplitudes.";
 QState::mismatchAmps = "Some basis labels specified as amplitudes are not included in the list of basis states labels.";
-Options[QState] = {"Amplitudes" -> None, "BasisStates" -> None};
 
 (* QState does not handle direct specification of tensor product bases, for now *)
+Options[QState] = {"Amplitudes" -> None, "BasisStates" -> None};
 QState[opts : OptionsPattern[]] := With[{
   amps = qstateParseAmps[OptionValue @ "Amplitudes"],
   basis = qstateParseBasis[OptionValue @ "BasisStates"]
 },
   Which[
   (* If no basis state is provided, the labels given as "Amplitudes" are used instead *)
-    basis === None,
+    (basis === None) && (Head @ amps === Association),
     iQState[
       Developer`ToPackedArray @ Values @ amps,
       {Keys @ amps}
     ],
+    (basis === None) && (Head @ amps === List),
+    iQState[
+      Developer`ToPackedArray @ amps,
+      {ToString /@ Range @ Length @ amps}
+    ],
+  (* whatever *)
+    (Head @ amps === List) && (Length @ amps != Length @ basis),
+    Message[QState::mismatchAmps]; Abort[],
+    (Head @ amps === List) && (Length @ amps == Length @ basis),
+    iQState[
+      Developer`ToPackedArray @ amps,
+      If[TensorRank[basis] == 1, {basis}, basis]
+    ],
   (* The labels used to specify the amplitudes must be included in the ones specified for the basis *)
     ! SubsetQ[basis, Keys @ amps],
-    Message[QState::mismatchAmps],
+    Message[QState::mismatchAmps]; Abort[],
   (* Otherwise, if both amplitudes and basis are provided and are compatible with each other, use the latter to complete the former *)
     True,
     iQState[
@@ -123,8 +141,51 @@ QState[opts : OptionsPattern[]] := With[{
 ];
 
 
-(* iQStateTP stores the amplitudes in a tensor product structure, i.e. as what you get issuing TensorProduct on the single bases *)
+$iQStatePrettyPrintMagnification = 2;
+$iQStatePrettyPrint = True;
 
+ClearAll[qStatePrettyPrint];
+qStatePrettyPrint[iQState[amps_List, basis : {__String}]] := MaTeX[
+  MapThread[
+    Which[
+      #1 == 0 // TrueQ, "",
+      #1 == 1 // TrueQ, "\\left|" ~~ ToString @ TeXForm @ #2 ~~ "\\right\\rangle",
+      True,
+      "\\left(" ~~ ToString[TeXForm @ Simplify @ #1] ~~ "\\right)\\left|" ~~ ToString @ TeXForm @ #2 ~~ "\\right\\rangle"
+    ] &,
+    {amps, basis}
+  ] // DeleteCases[""] // Riffle[#, "+"] & // StringJoin,
+  Magnification -> $iQStatePrettyPrintMagnification
+];
+qStatePrettyPrint[iQState[amps_, {basis_List}]] := qStatePrettyPrint[iQState[amps, basis]];
+qStatePrettyPrint[iQState[amps_List, bases : {{__String} ..}]] := With[{
+  basis = Flatten @ Outer[#1 <> ", " <> #2 &, Sequence @@ bases]
+},
+  qStatePrettyPrint[iQState[amps, basis]]
+];
+
+$iQStateAutoRenormalize = True;
+iQState::cannotSumDifferentBases = "Quantum states over different bases cannot be summed together.";
+iQState /: Plus[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
+  bases1 =!= bases2,
+  Message[iQState::cannotSumDifferentBases]; Return[$Failed],
+  iQState[
+    If[TrueQ @ $iQStateAutoRenormalize, # / Norm@#, #]&[
+      amps1 + amps2
+    ],
+    bases1
+  ]
+];
+
+iQState /: MakeBoxes[iQState[amps_, bases_], StandardForm] := If[TrueQ@$iQStatePrettyPrint,
+  ToBoxes @ qStatePrettyPrint@iQState[amps, bases],
+  RowBox @ {
+    "iQState", "[", ToBoxes@amps, ",", ToBoxes@bases, "]"
+  }
+];
+
+
+(* iQStateTP stores the amplitudes in a tensor product structure, i.e. as what you get issuing TensorProduct on the single bases *)
 (* If a single argument is provided, nothing happens *)
 QTensorProduct[something_] := something;
 QTensorProduct[iQStateTP[amps1_, basis1_], iQStateTP[amps2_, basis2_]] := iQStateTP[
@@ -255,7 +316,15 @@ iQDensityMatrixTP /: Dot[matrix_?MatrixQ, iQDensityMatrixTP[tp_, basis_]] := If[
 iQDensityMatrixTP /: Tr[iQDensityMatrixTP[tp_, _]] := QTr[tp];
 
 (* ===================== UPVALUES FOR iQDensityMatrix ========================= *)
-iQDensityMatrix /: MatrixForm[iQDensityMatrix[dm_, _]] := MatrixForm[dm];
+iQDensityMatrix /: MatrixForm[iQDensityMatrix[dm_, bases_]] := MatrixForm[
+  dm,
+  TableHeadings -> {#, #}& @ If[Length @ bases == 1,
+    bases[[1]],
+    Flatten @ Outer[
+      #1 <> "," <> #2 &, Sequence @@ bases
+    ]
+  ]
+];
 iQDensityMatrix /: Tr[iQDensityMatrix[dm_, _]] := Tr[dm];
 iQDensityMatrix /: Dot[matrix_?MatrixQ, iQDensityMatrix[dm_, basis_]] := iQDensityMatrix[
   matrix . dm,
@@ -323,16 +392,16 @@ QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] /; Length @ matrix == Length @ 
   basis
 ];
 
+QEvolve[iQDensityMatrix[matrix_, basis_], u_?MatrixQ] := iQDensityMatrix[
+  u . matrix . ConjugateTranspose[u],
+  basis
+];
+
 QEvolve[iQStateTP[amps_, basis_], matrix_?MatrixQ] := iQStateTP[
   ArrayReshape[
     matrix . Flatten[amps],
     Length /@ basis
   ],
-  basis
-];
-
-QEvolve[iQDensityMatrix[matrix_, basis_], u_?MatrixQ] := iQDensityMatrix[
-  u . matrix . ConjugateTranspose[u],
   basis
 ];
 
@@ -419,6 +488,9 @@ PureStateQ[iQDensityMatrix[matrix_, basis_]] := Chop[N @ Tr[matrix . matrix]] ==
 With[{syms = Names["QM`QStates`*"]},
   SetAttributes[syms, {Protected, ReadProtected}]
 ];
+
+(* Unprotect changeable Symbols *)
+Unprotect[$iQStateAutoRenormalize, $iQStatePrettyPrint, $iQStatePrettyPrintMagnification];
 
 End[];
 EndPackage[];
