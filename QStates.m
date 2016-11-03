@@ -22,7 +22,7 @@ iQState[amplitudes, basis] is the internal representation of a quantum state in 
   *basis*: list of labels for the basis states. Each label can have any Head, but not be a List of objects, or elements with nested heads (that is, it must have an ArrayDepth equal to 2).
     If the ArrayDepth of *basis* is greater than 2 (equal to 3), the iQState is assumed to represent a state in a tensor product basis, and the *amplitudes* should correspondingly have an ArrayDepth equal to the Length of *basis*.\
 ";
-$iQStateAutoRenormalize;
+$iQStateAutoNormalize;
 $iQStatePrettyPrint;
 $iQStatePrettyPrintMagnification;
 
@@ -57,13 +57,14 @@ QEvolve::usage = "\
 QEvolve[qstate, evolutionMatrix] returs the state *qstate* evolved according to the specified *evolutionMatrix*.\
 ";
 
-QRenormalize::usage = "\
+QNormalize::usage = "\
 blabla
 ";
 
 PureStateQ::usage = "PureStateQ[state] returns True if state is pure, checking if the trace of the square of state is equal to 1.";
 
 TensorProductToMatrix::usage = "TensorProductToMatrix[asd]";
+TensorProductFromMatrix::usage = "TensorProductFromMatrix[matrix, {n1, n2, ...}] does what it should do.";
 
 Begin["`Private`"];
 
@@ -116,9 +117,10 @@ QState[opts : OptionsPattern[]] := With[{
       Developer`ToPackedArray @ amps,
       {ToString /@ Range @ Length @ amps}
     ],
-  (* whatever *)
+  (* If a list of amplitudes is provided it must have the same length as the list of basis elements specified *)
     (Head @ amps === List) && (Length @ amps != Length @ basis),
     Message[QState::mismatchAmps]; Abort[],
+  (* If the length of the amplitudes and basis match we proceed in saving the state into the iQState wrapper *)
     (Head @ amps === List) && (Length @ amps == Length @ basis),
     iQState[
       Developer`ToPackedArray @ amps,
@@ -139,6 +141,7 @@ QState[opts : OptionsPattern[]] := With[{
     ]
   ]
 ];
+QState[amps_] := QState["Amplitudes" -> amps];
 
 
 $iQStatePrettyPrintMagnification = 2;
@@ -164,13 +167,13 @@ qStatePrettyPrint[iQState[amps_List, bases : {{__String} ..}]] := With[{
   qStatePrettyPrint[iQState[amps, basis]]
 ];
 
-$iQStateAutoRenormalize = True;
+$iQStateAutoNormalize = True;
 iQState::cannotSumDifferentBases = "Quantum states over different bases cannot be summed together.";
 iQState /: Plus[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
   bases1 =!= bases2,
   Message[iQState::cannotSumDifferentBases]; Return[$Failed],
   iQState[
-    If[TrueQ @ $iQStateAutoRenormalize, # / Norm@#, #]&[
+    If[TrueQ @ $iQStateAutoNormalize, # / Norm@#, #]&[
       amps1 + amps2
     ],
     bases1
@@ -253,6 +256,16 @@ TensorProductFromMatrix[matrix_, basis : {{__}..}] := Transpose[
   Join[
     Range[1, 2 * Length @ basis - 1, 2],
     Range[2, 2 * Length @ basis, 2]
+  ]
+];
+TensorProductFromMatrix[matrix_, basisLengths : {__Integer}] := Transpose[
+  ArrayReshape[
+    matrix,
+    Join[#, #] &[basisLengths]
+  ],
+  Join[
+    Range[1, 2 * Length @ basisLengths - 1, 2],
+    Range[2, 2 * Length @ basisLengths, 2]
   ]
 ];
 
@@ -468,15 +481,15 @@ QTr[tp_] := With[{
 ];
 
 
-QRenormalize[iQDensityMatrixTP[tp_, basis_]] := iQDensityMatrixTP[
+QNormalize[iQDensityMatrixTP[tp_, basis_]] := iQDensityMatrixTP[
   tp / QTr[tp],
   basis
 ];
-QRenormalize[iQDensityMatrix[matrix_, basis_]] := iQDensityMatrix[
+QNormalize[iQDensityMatrix[matrix_, basis_]] := iQDensityMatrix[
   matrix / Tr[matrix],
   basis
 ];
-QRenormalize[iQState[amps_, basis_]] := iQState[
+QNormalize[iQState[amps_, basis_]] := iQState[
   amps / Norm[amps],
   basis
 ];
@@ -490,7 +503,7 @@ With[{syms = Names["QM`QStates`*"]},
 ];
 
 (* Unprotect changeable Symbols *)
-Unprotect[$iQStateAutoRenormalize, $iQStatePrettyPrint, $iQStatePrettyPrintMagnification];
+Unprotect[$iQStateAutoNormalize, $iQStatePrettyPrint, $iQStatePrettyPrintMagnification];
 
 End[];
 EndPackage[];
