@@ -22,6 +22,10 @@ iQState[amplitudes, basis] is the internal representation of a quantum state in 
   *basis*: list of labels for the basis states. Each label can have any Head, but not be a List of objects, or elements with nested heads (that is, it must have an ArrayDepth equal to 2).
     If the ArrayDepth of *basis* is greater than 2 (equal to 3), the iQState is assumed to represent a state in a tensor product basis, and the *amplitudes* should correspondingly have an ArrayDepth equal to the Length of *basis*.\
 ";
+
+QPlus;
+QEnv;
+
 $iQStateAutoNormalize;
 $iQStatePrettyPrint;
 $iQStatePrettyPrintMagnification;
@@ -51,6 +55,9 @@ QDMFromMatrix[matrix, basis] converts the 2D matrix *matrix* into the tensor pro
 
 QPartialTrace::usage = "\
 QPartialTrace[dm, k] computes the partial trace with respect to the *k*-th basis of the density matrix *dm*.\
+";
+QPartialTranspose::usage = "\
+QPartialTranspose[dm, n] computes the partial transpose of the density matrix dm with the respect to the n-th space.
 ";
 
 QEvolve::usage = "\
@@ -169,16 +176,8 @@ qStatePrettyPrint[iQState[amps_List, bases : {{__String} ..}]] := With[{
 
 $iQStateAutoNormalize = True;
 iQState::cannotSumDifferentBases = "Quantum states over different bases cannot be summed together.";
-iQState /: Plus[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
-  bases1 =!= bases2,
-  Message[iQState::cannotSumDifferentBases]; Return[$Failed],
-  iQState[
-    If[TrueQ @ $iQStateAutoNormalize, # / Norm@#, #]&[
-      amps1 + amps2
-    ],
-    bases1
-  ]
-];
+iQState /: Plus[state1_iQState, state2_iQState] := QPlus[state1, state2];
+iQState /: Times[x_, iQState[amps_, bases_]] := iQState[x amps, bases];
 
 iQState /: MakeBoxes[iQState[amps_, bases_], StandardForm] := If[TrueQ@$iQStatePrettyPrint,
   ToBoxes @ qStatePrettyPrint@iQState[amps, bases],
@@ -187,6 +186,47 @@ iQState /: MakeBoxes[iQState[amps_, bases_], StandardForm] := If[TrueQ@$iQStateP
   }
 ];
 
+(* ----------------------- HANDLING OF STATES ALGEBRA ----------------------------- *)
+SetAttributes[QEnv, HoldAll];
+QEnv[expr_] := With[{
+  rules = {Plus -> QPlus}
+},
+  Unevaluated[expr] /. rules
+];
+QEnv[expr___] := expr;
+
+SetAttributes[QPlus, Orderless];
+QPlus[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
+  bases1 =!= bases2,
+  Message[iQState::cannotSumDifferentBases]; Return[$Failed],
+  iQState[
+    If[TrueQ @ $iQStateAutoNormalize, # / Norm @ #, #]&[
+      amps1 + amps2
+    ],
+    bases1
+  ]
+];
+QPlus[iQState[amps1_, bases1_], -iQState[amps2_, bases2_]] := QPlus[
+  iQState[amps1, bases1], iQState[-amps2, bases2]
+];
+QPlus[iQState[amps1_, bases1_], x_ iQState[amps2_, bases2_]] := QPlus[
+  iQState[amps1, bases1], iQState[x amps2, bases2]
+];
+QPlus[x_ iQState[amps1_, bases1_], y_ iQState[amps2_, bases2_]] := QPlus[
+  iQState[x amps1, bases1], iQState[y amps2, bases2]
+];
+
+QPlus[iQDensityMatrix[m_, b_], iQDensityMatrix[mm_, bb_]] := If[
+  b =!= bb, Message[iQDensityMatrix::cannotSumDifferentBases]; Return[$Failed],
+  iQDensityMatrix[
+    If[TrueQ @ $iQDensityMatrixAutoNormalize, # / Tr @ #, #]&[
+      m + mm
+    ],
+    b
+  ]
+];
+QPlus[iQDensityMatrix[m_, b_], mm_?MatrixQ] := iQDensityMatrix[m + mm, b];
+QPlus[x___] := Plus[x];
 
 (* iQStateTP stores the amplitudes in a tensor product structure, i.e. as what you get issuing TensorProduct on the single bases *)
 (* If a single argument is provided, nothing happens *)
@@ -329,6 +369,7 @@ iQDensityMatrixTP /: Dot[matrix_?MatrixQ, iQDensityMatrixTP[tp_, basis_]] := If[
 iQDensityMatrixTP /: Tr[iQDensityMatrixTP[tp_, _]] := QTr[tp];
 
 (* ===================== UPVALUES FOR iQDensityMatrix ========================= *)
+iQDensityMatrix::cannotSumDifferentBases = "Quantum states over different bases cannot be summed together.";
 iQDensityMatrix /: MatrixForm[iQDensityMatrix[dm_, bases_]] := MatrixForm[
   dm,
   TableHeadings -> {#, #}& @ If[Length @ bases == 1,
@@ -356,7 +397,12 @@ iQDensityMatrix /: Dot[iQDensityMatrix[dm1_, basis1_], iQDensityMatrix[dm2_, bas
     basis1
   ]
 ];
-
+$iQDensityMatrixAutoNormalize = True;
+iQDensityMatrix /: Plus[dm1_iQDensityMatrix, dm2_iQDensityMatrix] := QPlus[dm1, dm2];
+iQDensityMatrix /: Plus[iQDensityMatrix[matrix_, bases_], m_?MatrixQ] := iQDensityMatrix[m + matrix, bases];
+iQDensityMatrix /: Times[x_, iQDensityMatrix[matrix_, bases_]] := iQDensityMatrix[x matrix, bases];
+iQDensityMatrix /: Eigenvalues[iQDensityMatrix[m_, _]] := Eigenvalues[m];
+iQDensityMatrix /: Eigenvectors[iQDensityMatrix[m_, _]] := Eigenvectors[m];
 
 
 QPartialTrace::wrongDims =
@@ -398,6 +444,29 @@ QPartialTrace[matrix_, basisLengths_, k_Integer] := First@QPartialTrace[
   ],
   k
 ];
+
+
+QPartialTranspose::invalidDim = "The index of the basis for the partial transpose is not valid.";
+QPartialTranspose[n_Integer][state_] := QPartialTranspose[state, n];
+QPartialTranspose[n_Integer][m_, lengths_] := QPartialTranspose[m, lengths, n];
+QPartialTranspose[matrix_?MatrixQ, basisLengths : {__Integer}, n_Integer] := ArrayReshape[#, Dimensions@matrix] &@Transpose[
+  ArrayReshape[matrix, Join[#, #] &@basisLengths],
+  ReplacePart[
+    Range[2 Length@basisLengths],
+    {
+      n -> n + Length@basisLengths,
+      n + Length@basisLengths -> n
+    }
+  ]
+];
+
+QPartialTranspose[iQDensityMatrix[matrix_List, bases_List], dim_Integer] := Which[
+  !(1 <= dim <= Length@bases), Message[QPartialTranspose::invalidDim],
+  Length@bases == 1, iQDensityMatrix[Transpose@matrix, bases],
+  True,
+  iQDensityMatrix[QPartialTranspose[matrix, Length /@ bases, dim], bases]
+];
+
 
 QEvolve::dimMismatch = "The input matrix and the basis of the QState must have the same dimension.";
 QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] /; Length @ matrix == Length @ amps := iQState[
