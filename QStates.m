@@ -6,7 +6,7 @@ If[$VersionNumber < 10,
   Abort[]
 ];
 
-BeginPackage["QM`QStates`", "MaTeX`"];
+BeginPackage["QM`QStates`", {"MaTeX`"}];
 
 (* Unprotect all package symbols *)
 Unprotect @@ Names["QM`QStates`*"];
