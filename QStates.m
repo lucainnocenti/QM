@@ -169,7 +169,7 @@ qStatePrettyPrint[iQState[amps_List, basis : {__String}]] := MaTeX[
 ];
 qStatePrettyPrint[iQState[amps_, {basis_List}]] := qStatePrettyPrint[iQState[amps, basis]];
 qStatePrettyPrint[iQState[amps_List, bases : {{__String} ..}]] := With[{
-  basis = Flatten @ Outer[#1 <> ", " <> #2 &, Sequence @@ bases]
+  basis = Flatten @ Outer[StringJoin @ Riffle[{##}, ", "] &, Sequence @@ bases]
 },
   qStatePrettyPrint[iQState[amps, basis]]
 ];
@@ -408,6 +408,7 @@ iQDensityMatrix /: Eigenvectors[iQDensityMatrix[m_, _]] := Eigenvectors[m];
 QPartialTrace::wrongDims =
     "The tensor product structure is not compatible with the specified \
 index over which to do the partial trace.";
+QPartialTrace[k_Integer][state_] := QPartialTrace[state, k];
 QPartialTrace[iQDensityMatrix[dm_, basis_], k_Integer] /; Length @ basis == 1 := Tr[dm];
 QPartialTrace[iQDensityMatrix[dm_, basis_], k_Integer] := With[{
   qdmTP = QPartialTrace[QDMFromMatrix[dm, basis], k]
