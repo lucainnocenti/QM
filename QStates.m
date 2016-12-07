@@ -24,6 +24,7 @@ iQState[amplitudes, basis] is the internal representation of a quantum state in 
 ";
 
 QPlus;
+QDot;
 QEnv;
 
 $iQStateAutoNormalize;
@@ -43,6 +44,10 @@ IMPORTANT: the tensor product structure of *tp* is in row1-col1-row2-col2-... or
 
 QStateToDensityMatrix::usage = "\
 QStateToDensityMatrix[state] takes an iQState object, and returns the density matrix of the corresponding state as an iQDensityMatrix object.\
+";
+
+QDensityMatrixToKet::usage = "\
+QDensityMatrixToKet[dm] returns the set of probability amplitudes corresponding to the input density matrix, with the first amplitude conventionally assumed to be real.
 ";
 
 QDM2Matrix::usage = "\
@@ -228,6 +233,13 @@ QPlus[iQDensityMatrix[m_, b_], iQDensityMatrix[mm_, bb_]] := If[
 QPlus[iQDensityMatrix[m_, b_], mm_?MatrixQ] := iQDensityMatrix[m + mm, b];
 QPlus[x___] := Plus[x];
 
+QDot::differentBases = "The bases must be equal.";
+QDot[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
+  bases1 === bases2,
+  Conjugate[amps1] . amps2,
+  Message[QDot::differentBases]
+];
+
 (* iQStateTP stores the amplitudes in a tensor product structure, i.e. as what you get issuing TensorProduct on the single bases *)
 (* If a single argument is provided, nothing happens *)
 QTensorProduct[something_] := something;
@@ -277,6 +289,12 @@ QStateToDensityMatrix[iQStateTP[amps_, basis_]] := With[{len = Length @ basis},
 QStateToDensityMatrix[iQState[amps_, basis_]] := iQDensityMatrix[
   KroneckerProduct[Conjugate[amps], amps],
   basis
+];
+
+QDensityMatrixToKet[dmMatrix_?MatrixQ] := Conjugate @ dmMatrix[[1]] / Sqrt @ Abs @ dmMatrix[[1, 1]];
+QDensityMatrixToKet[dm_iQDensityMatrix] := iQState[
+  QDensityMatrixToKet @ First @ dm,
+  Last @ dm
 ];
 
 (* TensorProductToMatrix assumes that the tensor structure is of the form row,column,row,column,... *)
@@ -375,7 +393,11 @@ iQDensityMatrix /: MatrixForm[iQDensityMatrix[dm_, bases_]] := MatrixForm[
   TableHeadings -> {#, #}& @ If[Length @ bases == 1,
     bases[[1]],
     Flatten @ Outer[
-      #1 <> "," <> #2 &, Sequence @@ bases
+      StringJoin @@ Riffle[
+        ToString /@ {##},
+        ","
+      ]&,
+      Sequence @@ bases
     ]
   ]
 ];
