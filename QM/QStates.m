@@ -386,6 +386,7 @@ iQDensityMatrixTP /: Dot[matrix_?MatrixQ, iQDensityMatrixTP[tp_, basis_]] := If[
 
 iQDensityMatrixTP /: Tr[iQDensityMatrixTP[tp_, _]] := QTr[tp];
 
+
 (* ===================== UPVALUES FOR iQDensityMatrix ========================= *)
 iQDensityMatrix::cannotSumDifferentBases = "Quantum states over different bases cannot be summed together.";
 iQDensityMatrix /: MatrixForm[iQDensityMatrix[dm_, bases_]] := MatrixForm[
