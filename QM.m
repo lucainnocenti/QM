@@ -1,16 +1,14 @@
-(* ::Package:: *)
-
 (* Abort for old, unsupported versions of Mathematica *)
 If[$VersionNumber < 10,
   Print["ReckDecomposition requires Mathematica 10.0 or later."];
   Abort[]
 ];
 
-BeginPackage["QM`QStates`", {"MaTeX`"}];
+BeginPackage["QM`", {"MaTeX`"}];
 
 (* Unprotect all package symbols *)
-Unprotect @@ Names["QM`QStates`*"];
-ClearAll @@ Names["QM`QStates`*"];
+Unprotect @@ Names["QM`*"];
+ClearAll @@ Names["QM`*"];
 
 
 QState::usage = "\
@@ -88,6 +86,7 @@ Begin["`Private`"];
 fillAmps[amps_Association, basis_List] :=
     If[KeyExistsQ[amps, #], amps[#], 0] & /@ basis;
 
+
 qstateParseAmps[amps_] := Which[
 (* return error and abort if no amplitude is provided *)
   amps === None, Message[QState::ampsMissing]; Abort[],
@@ -100,11 +99,14 @@ qstateParseAmps[amps_] := Which[
   amps,
   True, Message[QState::ampsUnrecognized]; Abort[]
 ];
+
+
 qstateParseBasis[basis_] := Which[
   basis === None, None,
   Head@basis =!= List, Message[QState::basisMustBeList]; Abort[],
   True, ToString /@ basis
 ];
+
 
 QState::ampsMissing = "The input argument \"Amplitudes\" is mandatory.";
 QState::ampsMustBeAss = "The input argument \"Amplitudes\" must be an Association.";
@@ -156,6 +158,7 @@ QState[opts : OptionsPattern[]] := With[{
 QState[amps_] := QState["Amplitudes" -> amps];
 
 
+
 $iQStatePrettyPrintMagnification = 2;
 $iQStatePrettyPrint = True;
 
@@ -190,6 +193,7 @@ iQState /: MakeBoxes[iQState[amps_, bases_], StandardForm] := If[TrueQ@$iQStateP
     "iQState", "[", ToBoxes@amps, ",", ToBoxes@bases, "]"
   }
 ];
+
 
 (* ----------------------- HANDLING OF STATES ALGEBRA ----------------------------- *)
 SetAttributes[QEnv, HoldAll];
@@ -591,7 +595,7 @@ PureStateQ[iQDensityMatrix[matrix_, basis_]] := Chop[N @ Tr[matrix . matrix]] ==
 
 
 (* Protect all package symbols *)
-With[{syms = Names["QM`QStates`*"]},
+With[{syms = Names["QM`QM`*"]},
   SetAttributes[syms, {Protected, ReadProtected}]
 ];
 

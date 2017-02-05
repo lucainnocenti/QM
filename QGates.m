@@ -6,7 +6,7 @@ If[$VersionNumber < 10,
   Abort[]
 ];
 
-BeginPackage["QM`QGates`", {"MaTeX`"}];
+BeginPackage["QM`QGates`"];
 
 (* Unprotect all package symbols *)
 Unprotect @@ Names["QM`QGates`*"];
@@ -21,8 +21,6 @@ With[{syms = Names["QM`QGates`*"]},
   SetAttributes[syms, {Protected, ReadProtected}]
 ];
 
-(* Unprotect changeable Symbols *)
-Unprotect[$iQStateAutoNormalize, $iQStatePrettyPrint, $iQStatePrettyPrintMagnification];
 
 End[];
 EndPackage[];
