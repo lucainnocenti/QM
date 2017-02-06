@@ -1,5 +1,3 @@
-(* ::Package:: *)
-
 (* Abort for old, unsupported versions of Mathematica *)
 If[$VersionNumber < 10,
   Print["BlochSphere requires Mathematica 10.0 or later."];

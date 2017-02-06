@@ -204,6 +204,7 @@ QEnv[expr_] := With[{
 ];
 QEnv[expr___] := expr;
 
+
 SetAttributes[QPlus, Orderless];
 QPlus[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
   bases1 =!= bases2,
