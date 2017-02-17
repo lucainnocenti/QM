@@ -45,7 +45,8 @@ InitializeQCircuit[] := QCircuit[<|
   "GatesSquaresWidth" -> 0.5,
   "Gates" -> {
     {1.3, <|"Name" -> "H", "Args" -> 1|>},
-    {2.7, <|"Name" -> "H", "Args" -> 2|>}
+    {2.7, <|"Name" -> "H", "Args" -> 2|>},
+    {4.1, <|"Name" -> "NiceDot", "Args" -> 2|>}
   }
 |>];
 
@@ -91,15 +92,26 @@ draw1QubitGateBox[pos : {x_, y_}, letter_String, QCircuit[circuit_]] := Inset[
   circuit["GatesSquaresWidth"]
 ];
 
+(* drawNiceDot simply draws a simple black dot. It's for debugging purposes. *)
+drawNiceDot[pos : {x_, y_}] := Inset[
+  Graphics @ {
+    PointSize @ .05, Point @ {0, 0}
+  },
+  pos, Automatic
+];
+
 
 (* ---- Build the graphics primitives for all the gates in the circuit ---- *)
 drawGates[QCircuit[circuit_]] := Map[
   Which[
-    (* Hadamard gates *)
+  (* Nice black dot *)
+    #[[2]]["Name"] == "NiceDot",
+    drawNiceDot[{First @ #, Last[#]["Args"]}],
+  (* Hadamard gates *)
     #[[2]]["Name"] == "H",
     draw1QubitGateBox[{#[[1]], #[[2]]["Args"]}, "\\mathcal{H}",
       QCircuit@circuit],
-    (* Z Pauli gates *)
+  (* Z Pauli gates *)
     #[[2]]["Name"] == "Z",
     draw1QubitGateBox[{#[[1]], #[[2]]["Args"]}, "Z", QCircuit @ circuit]
   ] &,
@@ -130,20 +142,77 @@ graphicsOptions[circuit_QCircuit] := {
     the MousePosition["Graphics"], returns the closest coordinate
     that sits on a rail.
 *)
-findClosestPointOnLine[mousePosition_, circuitTopology_] := {
+findClosestPointOnLine[pos : {x_, y_}, QCircuit[circuit_]] := {
+  x,
+  Round[y / circuit["LinesSeparation"]] * circuit["LinesSeparation"]
+};
 
-}
+
+Attributes[eventHandling] = {HoldAll};
+eventHandling[circuit_] /; MatchQ[circuit, _QCircuit] := {
+  "MouseDown" :> Which[
+  (* Add a nice black point *)
+    TrueQ[action == "AddPoint"],
+    With[{newPointPos = findClosestPointOnLine[MousePosition["Graphics"], circuit]},
+      AppendTo[
+        circuit[[1, "Gates"]],
+        {
+          First @ newPointPos,
+          <|"Name" -> "NiceDot", "Args" -> newPointPos[[2]]|>
+        }
+      ]
+    ],
+  (* Add a 1 qubit gate *)
+    MatchQ[action, {"Add1QubitGate", _String}],
+    With[{newPointPos = findClosestPointOnLine[MousePosition["Graphics"], circuit]},
+      AppendTo[
+        circuit[[1, "Gates"]],
+        {
+          First @ newPointPos,
+          <|"Name" -> action[[2]], "Args" -> newPointPos[[2]]|>
+        }
+      ]
+    ],
+    True,
+    Print["Nothing to do"]
+  ]
+};
+
+
+optionsBar := RadioButtonBar[Dynamic @ action, {
+  "AddPoint" -> "Add point",
+  {"Add1QubitGate", "H"} -> "Add H",
+  {"Add1QubitGate", "Z"} -> "Add Z"
+(*"addCPHASE" -> "Add CPHASE",*)
+(*"removeCPHASE" -> "Remove CPHASE",*)
+(*"addH" -> "Insert H gate",*)
+(*"removeH" -> "Remove H gate"*)
+},
+  Enabled -> True,
+  Appearance -> "Vertical"
+];
 
 
 (* Draw the actual circuit.
-   Basically all the rest of this file builds up the necessary components for this call. *)
-DrawQCircuit[circuit_QCircuit] := Graphics[{
-  drawRails @ circuit,
-  drawGates @ circuit
+   Basically all the rest of this file builds up the necessary components for this function. *)
+Attributes[DrawQCircuit] = {HoldAll};
+DrawQCircuit[circuit_] /; MatchQ[circuit, _QCircuit] := DynamicModule[{
+  mousePosition,
+  action,
+  temporaryStatus
 },
-  Sequence @@ graphicsOptions[circuit]
+  Row[#, "  "] & @ {
+    Panel @ optionsBar,
+    EventHandler[#, eventHandling @ circuit]&[
+      Dynamic @ Graphics[{
+        drawRails @ circuit,
+        drawGates @ circuit
+      },
+        Sequence @@ graphicsOptions[circuit]
+      ]
+    ]
+  }
 ];
-
 
 (* Protect all package symbols *)
 With[{syms = Names["QM`QCircuitDrawer`*"]},
