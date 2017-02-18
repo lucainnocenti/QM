@@ -257,7 +257,7 @@ drawTemporaryStuff[circuit_QCircuitGraphics, stuff_Association, action_] := With
       MatchQ[action, {"Add2QubitGate", _String}],
       MemberQ[CurrentValue["ModifierKeys"], "Control"]
     ],
-    Echo @ drawCPHASEGate[
+    drawCPHASEGate[
       {#[[1]], #[[2]]["Args"]},
       circuit
     ] &[
