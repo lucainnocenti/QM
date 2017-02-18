@@ -14,21 +14,37 @@ convertElementToMatrix;
 InitializeQCircuit;
 DrawQCircuit;
 QCircuit;
+QCircuitGraphics;
 
-Begin["`Private`"]
+ConvertQCircuitGraphicsToQCircuit;
+ConvertQCircuitGraphicsToMatrices;
+ConvertQCircuitGraphicsToMatrix;
 
-Protect[QCircuit];
+ConvertQCircuitToMatrices;
+ConvertQCircuitToMatrix;
+
+Begin["`Private`"];
+
+Protect[QCircuitGraphics];
 
 namesToMatricesRules = {
   "H" -> QM`QGates`Hadamard,
+  "X" -> QM`QGates`PauliX,
+  "Y" -> QM`QGates`PauliY,
+  "Z" -> QM`QGates`PauliZ,
   "CNOT" -> QM`QGates`CNot,
   "CPHASE" -> QM`QGates`CPhase
 };
 
 namesToLabelsRules = {
-  "H" -> "\\mathcal{H}",
+  (*"H" -> "\\mathcal{H}",*)
+  "H" -> "H",
+  "X" -> "X",
+  "Y" -> "Y",
   "Z" -> "Z"
 };
+
+
 
 (* Take an association specifying a single gate, and convert
    it into the corresponding matrix. *)
@@ -40,10 +56,54 @@ convertElementToMatrix[numRails_Integer, elem_Association] := (
 ];
 
 
+ConvertQCircuitGraphicsToQCircuit[QCircuitGraphics[circuit_]] := With[{
+  gates = circuit["Gates"]
+},
+  QCircuit[
+    Rest /@ SortBy[-First@#&][
+      Cases[
+        gates,
+        {
+          x_,
+          <|OrderlessPatternSequence[
+            "Type" -> ("1QubitGate" | "2QubitGate"),
+            "Name" -> name_,
+            "Args" -> args_
+          ]|>
+        } :> {x, name, args}
+      ]
+    ]
+  ]
+];
+
+
+ConvertQCircuitToMatrices[numQubits_Integer, QCircuit[qcircuit_]] := Map[
+  ReplaceAll[
+    #[[1]],
+    namesToMatricesRules
+  ][
+    numQubits,
+    #[[2]]
+  ]&,
+  qcircuit
+];
+ConvertQCircuitToMatrix[numQubits_, qcircuit_QCircuit] := Apply[Dot][
+  ConvertQCircuitGraphicsToMatrices[numQubits, qcircuit]
+];
+
+ConvertQCircuitGraphicsToMatrices[QCircuitGraphics[circuit_]] := ConvertQCircuitToMatrices[
+  circuit["NumberOfQubits"],
+  ConvertQCircuitGraphicsToQCircuit @ QCircuitGraphics @ circuit
+];
+ConvertQCircuitGraphicsToMatrix[qcircuit_QCircuitGraphics] := Apply[Dot][
+  ConvertQCircuitGraphicsToMatrices[qcircuit]
+];
+
+
 (* Define the topology and elements of the circuit.
    This is meant to completely characterize the graphical and
    logical features of the circuit to be drawn.*)
-InitializeQCircuit[] := QCircuit[<|
+InitializeQCircuit[] := QCircuitGraphics[<|
   "NumberOfQubits" -> 3,
   "LinesSeparation" -> 1,
   "LinesWidth" -> 8,
@@ -51,7 +111,7 @@ InitializeQCircuit[] := QCircuit[<|
   "Gates" -> {
     {1.3, <|"Type" -> "1QubitGate", "Name" -> "H", "Args" -> 1|>},
     {2.7, <|"Type" -> "1QubitGate", "Name" -> "H", "Args" -> 2|>},
-    {4.1, <|"Type" -> "Debug", "Name" -> "NiceDot", "Args" -> 2|>}
+    {4.2, <|"Type" -> "2QubitGate", "Name" -> "CNOT", "Args" -> {3, 1}|>}
   }
 |>];
 
@@ -65,7 +125,7 @@ initializeRails[nOfLines_Integer, linesLength_?NumericQ, linesdy_?NumericQ] := T
   {i, nOfLines}
 ];
 
-drawRails[QCircuit[circuit_]] := With[{
+drawRails[QCircuitGraphics[circuit_]] := With[{
   rails = initializeRails[
     circuit["NumberOfQubits"],
     circuit["LinesWidth"],
@@ -90,7 +150,7 @@ draw1QubitGateBox[letter_String] := With[
     ]
   }
 ];
-draw1QubitGateBox[pos : {x_, y_}, letter_String, QCircuit[circuit_]] := Inset[
+draw1QubitGateBox[pos : {x_, y_}, letter_String, QCircuitGraphics[circuit_]] := Inset[
   Graphics @ draw1QubitGateBox[letter],
   pos,
   Automatic,
@@ -113,13 +173,13 @@ tokenCNOTTarget[{x_, y_}] := With[{r = 0.1},
   }
 ];
 
-drawCNOTGate[{x_, {controlY_, targetY_}}, QCircuit[circuit_]] := {
+drawCNOTGate[{x_, {controlY_, targetY_}}, QCircuitGraphics[circuit_]] := {
   tokenCNOTControl @ {x, controlY},
   tokenCNOTTarget @ {x, targetY},
   Line @ {{x, controlY}, {x, targetY}}
 };
 
-drawCPHASEGate[{x_, {controlY_, targetY_}}, QCircuit[circuit_]] := {
+drawCPHASEGate[{x_, {controlY_, targetY_}}, QCircuitGraphics[circuit_]] := {
   tokenCNOTControl @ {x, controlY},
   tokenCNOTControl @ {x, targetY},
   Line @ {{x, controlY}, {x, targetY}}
@@ -136,7 +196,7 @@ drawNiceDot[pos : {x_, y_}] := Inset[
 
 
 (* ---- Build the graphics primitives for all the gates in the circuit ---- *)
-drawGates[QCircuit[circuit_]] := Map[
+drawGates[QCircuitGraphics[circuit_]] := Map[
   Which[
   (* Nice black dot *)
     #[[2]]["Name"] == "NiceDot",
@@ -146,7 +206,7 @@ drawGates[QCircuit[circuit_]] := Map[
     draw1QubitGateBox[
       {#[[1]], #[[2]]["Args"]},
       #[[2]]["Name"] /. namesToLabelsRules,
-      QCircuit @ circuit
+      QCircuitGraphics @ circuit
     ],
   (* CNOT 2 qubit gate *)
     And[
@@ -155,7 +215,7 @@ drawGates[QCircuit[circuit_]] := Map[
     ],
     drawCNOTGate[
       {#[[1]], #[[2, "Args"]]},
-      QCircuit @ circuit
+      QCircuitGraphics @ circuit
     ],
   (* CPHASE 2 qubit gate *)
     And[
@@ -164,14 +224,14 @@ drawGates[QCircuit[circuit_]] := Map[
     ],
     drawCPHASEGate[
       {#[[1]], #[[2, "Args"]]},
-      QCircuit @ circuit
+      QCircuitGraphics @ circuit
     ]
   ] &,
   circuit["Gates"]
 ];
 
 
-drawTemporaryStuff[circuit_QCircuit, stuff_Association, action_] := With[{
+drawTemporaryStuff[circuit_QCircuitGraphics, stuff_Association, action_] := With[{
   mp = MousePosition["Graphics"]
 },
   Which[
@@ -205,7 +265,7 @@ drawTemporaryStuff[circuit_QCircuit, stuff_Association, action_] := With[{
 
 
 (* Define the options to use in the final graphics *)
-graphicsOptions[circuit_QCircuit] := {
+graphicsOptions[circuit_QCircuitGraphics] := {
   ImageSize -> 500,
   PlotRangePadding -> .2,
   PlotRange -> {
@@ -227,16 +287,16 @@ graphicsOptions[circuit_QCircuit] := {
     the MousePosition["Graphics"], returns the closest coordinate
     that sits on a rail.
 *)
-findClosestPointOnLine[pos : {x_, y_}, QCircuit[circuit_]] := {
+findClosestPointOnLine[pos : {x_, y_}, QCircuitGraphics[circuit_]] := {
   x,
   Round[y / circuit["LinesSeparation"]] * circuit["LinesSeparation"]
 };
-pointOnLine[qcircuit_QCircuit] := findClosestPointOnLine[
+pointOnLine[qcircuit_QCircuitGraphics] := findClosestPointOnLine[
   MousePosition["Graphics"], qcircuit
 ];
 
 
-findGateCloserToMouse[circuit_QCircuit] := With[{
+findGateCloserToMouse[circuit_QCircuitGraphics] := With[{
   gatesCoordinates = Cases[circuit[[1, "Gates"]],
     {
       x_,
@@ -251,7 +311,7 @@ findGateCloserToMouse[circuit_QCircuit] := With[{
 ];
 
 (*
-findGateCloserToMouse[circuit_QCircuit] := If[Length@# > 0, First@#, 0] &@With[{
+findGateCloserToMouse[circuit_QCircuitGraphics] := If[Length@# > 0, First@#, 0] &@With[{
   xDistances = Abs[pos[[1]] - First /@ hgates]
 },
   Select[Range@Length@hgates,
@@ -262,7 +322,7 @@ findGateCloserToMouse[circuit_QCircuit] := If[Length@# > 0, First@#, 0] &@With[{
 
 
 Attributes[addSingleRailObjectToQCircuit] = {HoldAll};
-addSingleRailObjectToQCircuit[circuit_, ass_Association] /; MatchQ[circuit, _QCircuit] := With[{
+addSingleRailObjectToQCircuit[circuit_, ass_Association] /; MatchQ[circuit, _QCircuitGraphics] := With[{
   newPointPos = findClosestPointOnLine[MousePosition["Graphics"], circuit]
 },
   AppendTo[
@@ -279,19 +339,19 @@ addSingleRailObjectToQCircuit[circuit_, ass_Association] /; MatchQ[circuit, _QCi
 
 
 (* `addDoubleRailObjectToQCircuit` adds the correctly formatted element
-    corresponding to a 2 qubit gate to the main `QCircuit` object.
+    corresponding to a 2 qubit gate to the main `QCircuitGraphics` object.
     The name and other specs of the gate to be added are into the input
     argument `ass`, while `temporaryStuff` is needed as an input because
     it contains the location of the control point the was first added.
 
     Note that this function *does not* draw anything.
     It just handles the operation of adding the properly formatted
-    element to the `QCircuit` object.
+    element to the `QCircuitGraphics` object.
 *)
 Attributes[addDoubleRailObjectToQCircuit] = {HoldAll};
 addDoubleRailObjectToQCircuit[
   circuit_, temporaryStuff_, ass_Association
-] /; MatchQ[circuit, _QCircuit] := With[{
+] /; MatchQ[circuit, _QCircuitGraphics] := With[{
   newPointPos = pointOnLine[circuit]
 },
   AppendTo[
@@ -320,7 +380,7 @@ addDoubleRailObjectToQCircuit[
         for example the first point in a double rail circuit
 *)
 Attributes[eventHandling] = {HoldAll};
-eventHandling[circuit_, action_, temporaryStuff_] /; MatchQ[circuit, _QCircuit] := {
+eventHandling[circuit_, action_, temporaryStuff_] /; MatchQ[circuit, _QCircuitGraphics] := {
   "MouseDown" :> Which[
   (* Add a nice black point *)
     TrueQ[action == "AddPoint"],
@@ -381,7 +441,7 @@ optionsBarAvailableTwoQubitGates = {
 };
 
 optionsBar := Dynamic @ RadioButtonBar[Dynamic @ action, {
-  (*"AddPoint" -> "Add point",*)
+(*"AddPoint" -> "Add point",*)
   Sequence @@ Table[
     {"Add1QubitGate", gateName} -> "Add " <> gateName,
     {gateName, optionsBarAvailableOneQubitGates}
@@ -429,10 +489,10 @@ optionsBar := Dynamic @ RadioButtonBar[Dynamic @ action, {
         when adding a 2 qubit gate.
         In general everything that is in this variable should only be
         temporary drawn in the graphics, but is not reflected by the
-        actual content of the main `QCircuit` object.
+        actual content of the main `QCircuitGraphics` object.
 *)
 Attributes[DrawQCircuit] = {HoldAll};
-DrawQCircuit[circuit_] /; MatchQ[circuit, _QCircuit] := DynamicModule[{
+DrawQCircuit[circuit_] /; MatchQ[circuit, _QCircuitGraphics] := DynamicModule[{
   action = {"Add2QubitGate", "CNOT"},
   temporaryStuff = Association[]
 },
