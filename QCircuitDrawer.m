@@ -37,7 +37,7 @@ namesToMatricesRules = {
 };
 
 namesToLabelsRules = {
-  (*"H" -> "\\mathcal{H}",*)
+(*"H" -> "\\mathcal{H}",*)
   "H" -> "H",
   "X" -> "X",
   "Y" -> "Y",
@@ -105,16 +105,20 @@ ConvertQCircuitGraphicsToMatrix[qcircuit_QCircuitGraphics] := Apply[Dot][
    This is meant to completely characterize the graphical and
    logical features of the circuit to be drawn.*)
 InitializeQCircuit[] := QCircuitGraphics[<|
-  "NumberOfQubits" -> 3,
+  "NumberOfQubits" -> 2,
   "LinesSeparation" -> 1,
   "LinesWidth" -> 8,
   "GatesSquaresWidth" -> 0.5,
   "Gates" -> {
     {1.3, <|"Type" -> "1QubitGate", "Name" -> "H", "Args" -> 1|>},
     {2.7, <|"Type" -> "1QubitGate", "Name" -> "H", "Args" -> 2|>},
-    {4.2, <|"Type" -> "2QubitGate", "Name" -> "CNOT", "Args" -> {3, 1}|>}
+    {4.2, <|"Type" -> "2QubitGate", "Name" -> "CNOT", "Args" -> {2, 1}|>}
   }
 |>];
+InitializeQCircuit[numQubits_Integer] := QCircuitGraphics @ Association[
+  First @ InitializeQCircuit[],
+  "NumberOfQubits" -> numQubits
+];
 
 
 (* ---- Initialize and draw the rails representing the qubits ---- *)
