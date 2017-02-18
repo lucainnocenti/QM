@@ -45,15 +45,13 @@ namesToLabelsRules = {
 };
 
 
-
-(* Take an association specifying a single gate, and convert
-   it into the corresponding matrix. *)
-convertElementToMatrix[numRails_Integer, elem_Association] := (
-  elem["Name"] /. namesToMatricesRules
-)[
-  numRails,
-  elem["Rails"]
+convertGraphicalToNaturalRailNumbering[QCircuitGraphics[circuit_], rails_List] := Map[
+  circuit["NumberOfQubits"] + 1 - # &,
+  rails
 ];
+convertGraphicalToNaturalRailNumbering[QCircuitGraphics[circuit_], railIndex_Integer] := (
+  circuit["NumberOfQubits"] + 1 - railIndex
+);
 
 
 ConvertQCircuitGraphicsToQCircuit[QCircuitGraphics[circuit_]] := With[{
@@ -70,7 +68,10 @@ ConvertQCircuitGraphicsToQCircuit[QCircuitGraphics[circuit_]] := With[{
             "Name" -> name_,
             "Args" -> args_
           ]|>
-        } :> {x, name, args}
+        } :> {
+          x, name,
+          convertGraphicalToNaturalRailNumbering[QCircuitGraphics @ circuit, args]
+        }
       ]
     ]
   ]
