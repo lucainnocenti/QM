@@ -180,6 +180,7 @@ drawCNOTGate[{x_, {controlY_, targetY_}}, QCircuitGraphics[circuit_]] := {
 };
 
 drawCPHASEGate[{x_, {controlY_, targetY_}}, QCircuitGraphics[circuit_]] := {
+  Black,
   tokenCNOTControl @ {x, controlY},
   tokenCNOTControl @ {x, targetY},
   Line @ {{x, controlY}, {x, targetY}}
@@ -249,8 +250,21 @@ drawTemporaryStuff[circuit_QCircuitGraphics, stuff_Association, action_] := With
       #[[2]]["Name"] /. namesToLabelsRules,
       circuit
     ] &[
-      circuit[[1, "Gates", findGateCloserToMouse[circuit]]]
+      circuit[[1, "Gates", findOneQubitGateCloserToMouse[circuit]]]
     ] /. {Black -> Red},
+  (* Remove 2 qubits gate mode *)
+    And[
+      MatchQ[action, {"Add2QubitGate", _String}],
+      MemberQ[CurrentValue["ModifierKeys"], "Control"]
+    ],
+    Echo @ drawCPHASEGate[
+      {#[[1]], #[[2]]["Args"]},
+      circuit
+    ] &[
+      circuit[[1, "Gates", findTwoQubitGateCloserToMouse[circuit]]]
+    ] /. {Black -> Red},
+  (* Add marker where the control qubit has been added,
+     while the target one has not been decided yet *)
     MatchQ[action, {"Adding2QubitGate", _String}],
     {
       PointSize @ 0.02, Red, Point @ stuff["2QubitGateInitialPoint"],
@@ -296,11 +310,13 @@ pointOnLine[qcircuit_QCircuitGraphics] := findClosestPointOnLine[
 ];
 
 
-findGateCloserToMouse[circuit_QCircuitGraphics] := With[{
+findOneQubitGateCloserToMouse[circuit_QCircuitGraphics] := With[{
   gatesCoordinates = Cases[circuit[[1, "Gates"]],
     {
       x_,
-      <|OrderlessPatternSequence["Type" -> "1QubitGate", "Args" -> y_, __]|>
+      Association @ OrderlessPatternSequence[
+        "Type" -> "1QubitGate", "Args" -> y_, __
+      ]
     } :> {x, y}
   ]
 },
@@ -310,8 +326,27 @@ findGateCloserToMouse[circuit_QCircuitGraphics] := With[{
   ]
 ];
 
+findTwoQubitGateCloserToMouse[circuit_QCircuitGraphics] := With[{
+  mp = MousePosition["Graphics"],
+  gatesCoordinatesIndexed = Cases[
+    Transpose @ {Range @ Length @ #, #} & @ circuit[[1, "Gates"]],
+    {index_,
+      {x_,
+        Association @ OrderlessPatternSequence[
+          "Type" -> "2QubitGate", __
+        ]
+      }
+    } :> {index, x}
+  ]
+},
+  First @ Nearest[
+    #[[2]] -> #[[1]] & /@ gatesCoordinatesIndexed,
+    mp[[1]]
+  ]
+];
+
 (*
-findGateCloserToMouse[circuit_QCircuitGraphics] := If[Length@# > 0, First@#, 0] &@With[{
+findOneQubitGateCloserToMouse[circuit_QCircuitGraphics] := If[Length@# > 0, First@#, 0] &@With[{
   xDistances = Abs[pos[[1]] - First /@ hgates]
 },
   Select[Range@Length@hgates,
@@ -395,12 +430,22 @@ eventHandling[circuit_, action_, temporaryStuff_] /; MatchQ[circuit, _QCircuitGr
     ],
     circuit[[1, "Gates"]] = Delete[
       circuit[[1, "Gates"]],
-      findGateCloserToMouse[circuit]
+      findOneQubitGateCloserToMouse[circuit]
     ],
   (* Add a 1 qubit gate*)
     MatchQ[action, {"Add1QubitGate", _String}],
     addSingleRailObjectToQCircuit[circuit,
       <|"Type" -> "1QubitGate", "Name" -> action[[2]]|>
+    ],
+  (* Remove a 2 qubits gate, if in Add2QubitGate mode and if the ctrl
+     modifier is being pressed *)
+    And[
+      MatchQ[action, {"Add2QubitGate", _String}],
+      MemberQ[CurrentValue["ModifierKeys"], "Control"]
+    ],
+    circuit[[1, "Gates"]] = Delete[
+      circuit[[1, "Gates"]],
+      findTwoQubitGateCloserToMouse[circuit]
     ],
   (* Add 2 qubit gates. *)
     MatchQ[action, {"Add2QubitGate", _String}],
