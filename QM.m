@@ -156,7 +156,7 @@ QState[opts : OptionsPattern[]] := With[{
   ]
 ];
 QState[amps_] := QState["Amplitudes" -> amps];
-
+QState[amps_, basis_] := QState["Amplitudes" -> amps, "BasisStates" -> basis];
 
 
 $iQStatePrettyPrintMagnification = 2;

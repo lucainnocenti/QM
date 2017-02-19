@@ -6,7 +6,7 @@ If[$VersionNumber < 10,
   Abort[]
 ];
 
-BeginPackage["QM`BlochSphere`", {"MaTeX`"}];
+BeginPackage["QM`BlochSphere`", {"QM`", "MaTeX`"}];
 
 (* Unprotect all package symbols *)
 Unprotect @@ Names["QM`BlochSphere`*"];
@@ -128,7 +128,7 @@ QBlochSphereCoordinates[amps_] /; (Length @ amps == 2) := Block[{
   ]
 ];
 
-QBlochSphereForm[x_] := (Echo @ MatchQ[x, _iQState]; FullForm @ x)
+
 QBlochSphereForm[
   iQState[amps_, bases_]
 ] /; (Length @ bases == 1 && Length @ amps == 2) := Graphics3D[{

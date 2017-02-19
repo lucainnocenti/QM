@@ -10,7 +10,7 @@ BeginPackage["QM`QCircuitDrawer`"];
 Unprotect @@ Names["QM`QCircuitDrawer`*"];
 ClearAll @@ Names["QM`QCircuitDrawer`*"];
 
-convertElementToMatrix;
+
 InitializeQCircuit;
 DrawQCircuit;
 QCircuit;
