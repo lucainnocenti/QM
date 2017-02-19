@@ -1,10 +1,12 @@
+(* ::Package:: *)
+
 (* Abort for old, unsupported versions of Mathematica *)
 If[$VersionNumber < 10,
   Print["BlochSphere requires Mathematica 10.0 or later."];
   Abort[]
 ];
 
-BeginPackage["QM`BlochSphere`", {"QM`", "MaTeX`", "utilities`"}];
+BeginPackage["QM`BlochSphere`", {"MaTeX`"}];
 
 (* Unprotect all package symbols *)
 Unprotect @@ Names["QM`BlochSphere`*"];
@@ -26,6 +28,30 @@ texStyle = Directive[
     FontWeight -> Plain, FontSlant -> Plain
   }
 ];
+
+
+splineCircle[m_List, r_, angles_List : {0, 2 \[Pi]}] := Module[{seg, \[Phi], start, end, pts, w, k},
+  {start, end} = Mod[angles // N, 2 \[Pi]];
+  If[end <= start, end += 2 \[Pi]];
+  seg = Quotient[end - start // N, \[Pi] / 2];
+  \[Phi] = Mod[end - start // N, \[Pi] / 2];
+  If[seg == 4, seg = 3;\[Phi] = \[Pi] / 2];
+  pts = r RotationMatrix[start].#& /@ Join[
+    Take[{{1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}}, 2 seg + 1],
+    RotationMatrix[seg \[Pi] / 2].#& /@ {{1, Tan[\[Phi] / 2]}, {Cos[\[Phi]], Sin[\[Phi]]}}
+  ];
+  If[Length[m] == 2,
+    pts = m + #& /@ pts,
+    pts = m + #& /@ Transpose@Append[Transpose@pts, ConstantArray[0, Length@pts]]
+  ];
+  w = Join[
+    Take[{1, 1 / Sqrt[2], 1, 1 / Sqrt[2], 1, 1 / Sqrt[2], 1}, 2 seg + 1],
+    {Cos[\[Phi] / 2], 1}
+  ];
+  k = Join[{0, 0, 0}, Riffle[#, #]&@Range[seg + 1], {seg + 1}];
+  BSplineCurve[pts, SplineDegree -> 2, SplineKnots -> k, SplineWeights -> w]
+] /; Length[m] == 2 || Length[m] == 3;
+
 
 pointsAndConnection[points_] := Sequence @@ {Sequence @@ Point /@ #, Line @ #} & @ points;
 
@@ -58,7 +84,7 @@ texKet[ns : {__}, magnification_ : 2, useMatex_ : True] := If[TrueQ@useMatex,
 ];
 
 Options[QBlochSphere] = {"Labels" -> True};
-QBlochSphere[OptionsPattern[]] := If[TrueQ@OptionValue@"Labels",
+QBlochSphere[OptionsPattern[]] := If[TrueQ @ OptionValue @ "Labels",
   With[{
     kets = texKet@{0, 1, "+", "-", "L", "R"}
   },
@@ -102,7 +128,10 @@ QBlochSphereCoordinates[amps_] /; (Length @ amps == 2) := Block[{
   ]
 ];
 
-QBlochSphereForm[iQState[amps_, bases_]] /; (Length @ bases == 1 && Length @ amps == 2) := Graphics3D[{
+QBlochSphereForm[x_] := (Echo @ MatchQ[x, _iQState]; FullForm @ x)
+QBlochSphereForm[
+  iQState[amps_, bases_]
+] /; (Length @ bases == 1 && Length @ amps == 2) := Graphics3D[{
   QBlochSphere[],
   {
     Point @ #,
