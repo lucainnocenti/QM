@@ -12,7 +12,13 @@ ClearAll @@ Names["QM`*"];
 
 
 QState::usage = "\
-QState[state] gives the internal iQState representation corresponding to state.";
+QState[amplitudes] generates a state with the specified amplitudes. The state is not renormalized by feault.
+QState[ampltudes, bases] generates a state with the specified amplitudes in the specified basis.";
+
+QDensityMatrix::usage = "\
+QDensityMatrix[amplitudes] generates a density matrix with the specified amplitudes, with basis labels automatically generated.
+QDensityMatrix[amplitudes, bases] generates a density matrix with the specified amplitudes and bases.
+";
 
 iQState::usage = "\
 iQState[amplitudes, basis] is the internal representation of a quantum state in ket representation.
@@ -100,7 +106,7 @@ qstateParseAmps[amps_] := Which[
   True, Message[QState::ampsUnrecognized]; Abort[]
 ];
 
-
+(* Checks that if `basis` is not None, then it must be a list *)
 qstateParseBasis[basis_] := Which[
   basis === None, None,
   Head@basis =!= List, Message[QState::basisMustBeList]; Abort[],
@@ -126,6 +132,7 @@ QState[opts : OptionsPattern[]] := With[{
       Developer`ToPackedArray @ Values @ amps,
       {Keys @ amps}
     ],
+  (* For no base labels and no labels given as Amplitudes, use integers as labels *)
     (basis === None) && (Head @ amps === List),
     iQState[
       Developer`ToPackedArray @ amps,
@@ -157,6 +164,17 @@ QState[opts : OptionsPattern[]] := With[{
 ];
 QState[amps_] := QState["Amplitudes" -> amps];
 QState[amps_, basis_] := QState["Amplitudes" -> amps, "BasisStates" -> basis];
+
+
+QDensityMatrix[matrix_, basis_ : None] := Which[
+  (basis === None && MatrixQ @ matrix),
+  iQDensityMatrix[
+    Developer`ToPackedArray @ matrix,
+    {ToString /@ Range @ Length @ matrix}
+  ],
+  True,
+  Print["YEHIIII"]
+];
 
 
 $iQStatePrettyPrintMagnification = 2;
