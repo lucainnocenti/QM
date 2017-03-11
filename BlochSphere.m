@@ -17,6 +17,7 @@ QBlochSphereCoordinates::usage = "\
 QBlochSphereCoordinates[amps] gives the cartesian coordinates of the Bloch sphere representation of the qubit state with provided amplitudes.
 QBlochSphereCoordinates[qstate] gives the cartesian coordinates of the Bloch sphere representation of the given quantum state.
 ";
+QBlochSphereCoordinatesToDensityMatrix;
 QBlochSphereForm;
 
 Begin["`Private`"];
@@ -83,6 +84,8 @@ texKet[ns : {__}, magnification_ : 2, useMatex_ : True] := If[TrueQ@useMatex,
   texKet[#, magnification, useMatex] & /@ n
 ];
 
+
+(* Generate and assemble the graphics primitive to draw a (static) Bloch sphere *)
 Options[QBlochSphere] = {"Labels" -> True};
 QBlochSphere[OptionsPattern[]] := If[TrueQ @ OptionValue @ "Labels",
   With[{
@@ -115,8 +118,22 @@ QBlochSphere[OptionsPattern[]] := If[TrueQ @ OptionValue @ "Labels",
   }
 ];
 
+
+(* Compute density matrix corresponding to given coordinates of the Bloch sphere *)
+QBlochSphereCoordinatesToDensityMatrix[r : {x_, y_, z_}] := Plus[
+  IdentityMatrix[2],
+  Dot[r, PauliMatrix /@ Range@3]
+] / 2;
+
+(* Extract Bloch sphere coordinates from Ket state or density matrix *)
+QBlochSphereCoordinates[iQDensityMatrix[matrix : {{_, _}, {_, _}}, bases_]] := QBlochSphereCoordinates[matrix];
+QBlochSphereCoordinates[matrix : {{_, _}, {_, _}}] := {
+  Tr @ Dot[PauliMatrix @ 1, matrix],
+  Tr @ Dot[PauliMatrix @ 2, matrix],
+  Tr @ Dot[PauliMatrix @ 3, matrix]
+};
 QBlochSphereCoordinates[iQState[amps_, bases_]] := QBlochSphereCoordinates[amps];
-QBlochSphereCoordinates[amps_] /; (Length @ amps == 2) := Block[{
+QBlochSphereCoordinates[amps : {_, _}] := Block[{
   namps = Normalize[amps Exp[-I Arg[First @ amps]]] // Chop
 },
   namps = {1, 2 ArcCos[First @ namps], Arg[Last @ namps]};
