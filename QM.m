@@ -27,6 +27,8 @@ iQState[amplitudes, basis] is the internal representation of a quantum state in 
     If the ArrayDepth of *basis* is greater than 2 (equal to 3), the iQState is assumed to represent a state in a tensor product basis, and the *amplitudes* should correspondingly have an ArrayDepth equal to the Length of *basis*.\
 ";
 
+QOpenMap;
+
 QPlus;
 QDot;
 QEnv;
@@ -417,12 +419,14 @@ QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] /; Length @ matrix == Length @ 
   matrix . amps,
   basis
 ];
-
 QEvolve[iQDensityMatrix[matrix_, basis_], u_?MatrixQ] := iQDensityMatrix[
   u . matrix . ConjugateTranspose[u],
   basis
 ];
-
+QEvolve[iQDensityMatrix[matrix_, _], openMapEMatrices : QOpenMap[eMatrices_List]] := Total @ Table[
+  Dot[e, matrix, ConjugateTranspose @ e],
+  {e, eMatrices}
+];
 
 
 QNormalize[iQDensityMatrix[matrix_, basis_]] := iQDensityMatrix[
