@@ -286,7 +286,7 @@ QTensorProduct[states__iQState] := With[{
 
 
 QStateToDensityMatrix[iQState[amps_, basis_]] := iQDensityMatrix[
-  KroneckerProduct[Conjugate[amps], amps],
+  KroneckerProduct[amps, Conjugate @ amps],
   basis
 ];
 
