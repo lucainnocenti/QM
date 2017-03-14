@@ -60,13 +60,11 @@ QDM2Matrix::usage = "\
 QDM2Matrix[iQDensityMatrix[tp, basis]] returns the regular matrix representation of the input density matrix.\
 ";
 
-QDMFromMatrix::usage = "\
-QDMFromMatrix[matrix, basis] converts the 2D matrix *matrix* into the tensor product representation of the corresponding state in the basis *basis*.\
+QPartialTrace::usage = "\
+QPartialTrace[matrix, k] computes the partial trace with respect to the k-th space.
+QPartialTrace[matrix, indicesToKeep] computes the partial trace of all the bases, except for the given ones.\
 ";
 
-QPartialTrace::usage = "\
-QPartialTrace[dm, k] computes the partial trace with respect to the *k*-th basis of the density matrix *dm*.\
-";
 QPartialTranspose::usage = "\
 QPartialTranspose[dm, n] computes the partial transpose of the density matrix dm with the respect to the n-th space.
 ";
@@ -83,6 +81,8 @@ PureStateQ::usage = "PureStateQ[state] returns True if state is pure, checking i
 
 TensorProductToMatrix::usage = "TensorProductToMatrix[asd]";
 TensorProductFromMatrix::usage = "TensorProductFromMatrix[matrix, {n1, n2, ...}] does what it should do.";
+
+RandomUnitary::usage = "RandomUnitary[m] returns an mxm Haar-random unitary matrix.";
 
 Begin["`Private`"];
 
@@ -327,6 +327,20 @@ TensorProductFromMatrix[matrix_, basisLengths : {__Integer}] := Transpose[
   ]
 ];
 
+(* QDMFromMatrix produces the nested TensorProduct structure from a regular matrix
+   and the corresponding bases, and embeds as an iQDensityMatrixTP object. The nested
+   TensorProduct structure is useful to compute the partial trace. *)
+QDMFromMatrix[matrix_List, basis : {{__}..}] := iQDensityMatrixTP[
+  Transpose[
+    ArrayReshape[matrix, Join[#, #]&[Length /@ basis]],
+    Join[
+      Range[1, 2 * Length @ basis - 1, 2],
+      Range[2, 2 * Length @ basis, 2]
+    ]
+  ],
+  basis
+];
+QDMFromMatrix[matrix_List, basis : {__}] := iQDensityMatrixTP[matrix, basis];
 
 
 (* ===================== UPVALUES FOR iQDensityMatrix ========================= *)
@@ -375,20 +389,37 @@ QPartialTrace::wrongDims =
 index over which to do the partial trace.";
 QPartialTrace[k_Integer][state_] := QPartialTrace[state, k];
 QPartialTrace[iQDensityMatrix[dm_, basis_], k_Integer] /; Length @ basis == 1 := Tr[dm];
-QPartialTrace[iQDensityMatrix[dm_, basis_], k_Integer] := With[{
-  qdmTP = QPartialTrace[QDMFromMatrix[dm, basis], k]
-},
-  iQDensityMatrix[
-    TensorProductToMatrix[First @ qdmTP],
-    qdmTP[[2]]
-  ]
+
+QPartialTrace[iQDensityMatrix[matrix_, bases_], indices_] := iQDensityMatrix[
+  QPartialTrace[matrix, Length /@ bases, indices],
+  bases
 ];
 
-QPartialTrace[matrix_, basisLengths_, k_Integer] := First@QPartialTrace[
-  iQDensityMatrix[
-    matrix, Range[0, # - 1] & /@ basisLengths
-  ],
-  k
+QPartialTrace[matrix_, lengths_List, indexToTrace_Integer] := QPartialTrace[matrix,
+  lengths,
+  Complement[Range @ Length @ lengths, {indexToTrace}]
+];
+
+QPartialTrace[matrix_, lengths_List, indicesToKeep_List] := With[{
+  indicesToTrace = Complement[Range @ Length @ lengths, indicesToKeep]
+},
+  With[{
+    matrixInTPForm = Transpose[
+      ArrayReshape[matrix, Join[lengths, lengths]],
+      Join @@ Transpose@Partition[Range[2 Length @ lengths], 2]
+    ]
+  },
+    Flatten[
+      TensorContract[
+        matrixInTPForm,
+        {2 # - 1, 2 #} & /@ indicesToTrace
+      ],
+      Transpose @ Partition[
+        Range[2 Length @ lengths - 2 Length @ indicesToTrace],
+        2
+      ]
+    ]
+  ]
 ];
 
 
@@ -423,7 +454,11 @@ QEvolve[iQDensityMatrix[matrix_, basis_], u_?MatrixQ] := iQDensityMatrix[
   u . matrix . ConjugateTranspose[u],
   basis
 ];
-QEvolve[iQDensityMatrix[matrix_, _], openMapEMatrices : QOpenMap[eMatrices_List]] := Total @ Table[
+QEvolve[state_iQState, openMapEvolution : QOpenMap[_List]] := QEvolve[
+  QStateToDensityMatrix @ state,
+  openMapEvolution
+];
+QEvolve[iQDensityMatrix[matrix_, _], QOpenMap[eMatrices_List]] := Total @ Table[
   Dot[e, matrix, ConjugateTranspose @ e],
   {e, eMatrices}
 ];
@@ -440,6 +475,15 @@ QNormalize[iQState[amps_, basis_]] := iQState[
 
 PureStateQ[iQDensityMatrix[matrix_, basis_]] := Chop[N @ Tr[matrix . matrix]] == 1;
 
+
+(* Generate a random unitary matrix, drawn from the uniform distribution.
+   The method is from Maris Ozols, 'How to generate a random unitary matrix'.
+*)
+RandomUnitary[m_] := Orthogonalize[
+  Map[#[[1]] + I #[[2]]&, #, {2}]& @ RandomReal[
+    NormalDistribution[0, 1], {m, m, 2}
+  ]
+];
 
 (* Protect all package symbols *)
 With[{syms = Names["QM`QM`*"]},
