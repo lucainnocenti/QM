@@ -127,7 +127,7 @@ QBlochSphereCoordinatesToDensityMatrix[r : {x_, y_, z_}] := Plus[
 
 (* Extract Bloch sphere coordinates from Ket state or density matrix *)
 QBlochSphereCoordinates[iQDensityMatrix[matrix : {{_, _}, {_, _}}, bases_]] := QBlochSphereCoordinates[matrix];
-QBlochSphereCoordinates[matrix : {{_, _}, {_, _}}] := {
+QBlochSphereCoordinates[matrix : {{_, _}, {_, _}}] := Re @ {
   Tr @ Dot[PauliMatrix @ 1, matrix],
   Tr @ Dot[PauliMatrix @ 2, matrix],
   Tr @ Dot[PauliMatrix @ 3, matrix]
