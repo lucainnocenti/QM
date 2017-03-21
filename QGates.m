@@ -21,6 +21,9 @@ PauliX;
 PauliY;
 PauliZ;
 
+TwoQubitGate;
+Toffoli;
+
 
 Begin["`Private`"];
 
@@ -35,6 +38,27 @@ ProjectionMatrix[numQubits_Integer, y_, x_] := Normal @ SparseArray[
 p11 = ProjectionMatrix[1, 1, 1];
 p22 = ProjectionMatrix[1, 2, 2];
 
+
+TwoQubitGate[numQubits_Integer, control_Integer, target_Integer, matrix_] := Block[
+  {tp, matrixAsTP, transposedBigTP},
+(* Initialize a list of 2 dimensional identity matrices *)
+  matrixAsTP = Transpose[ArrayReshape[matrix, {2, 2, 2, 2}], {1, 3, 2, 4}];
+  tp = TensorProduct[
+    TensorProduct @@ ConstantArray[IdentityMatrix @ 2, numQubits - 2],
+    matrixAsTP
+  ];
+  transposedBigTP = Transpose[tp,
+    Sequence @@ {2 # - 1, 2 #} & /@
+        {Sequence @@ Complement[Range @ numQubits, {control, target}], control, target}
+  ];
+
+  Flatten[transposedBigTP,
+    {
+      Range[1, 2 numQubits, 2],
+      Range[2, 2 numQubits, 2]
+    }
+  ]
+];
 
 (* CPhase is the controlled phase gate *)
 CPhase[numQubits_Integer, control_Integer, target_Integer] := Block[
@@ -117,10 +141,14 @@ PauliZ[target_] := PauliZ[1, 1];
 PauliZ[] = PauliZ[1, 1];
 
 
+(* Three qubits gates *)
+Toffoli[] := None;
+
+
 (* Protect all package symbols *)
-With[{syms = Names["QM`QGates`*"]},
-  SetAttributes[syms, {Protected, ReadProtected}]
-];
+    With[{syms = Names["QM`QGates`*"]},
+      SetAttributes[syms, {Protected, ReadProtected}]
+    ];
 
 
 End[];
