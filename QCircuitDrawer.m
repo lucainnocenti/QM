@@ -248,7 +248,10 @@ drawTemporaryStuff[circuit_QCircuitGraphics, stuff_Association, action_] := With
     *)
     And[
       MatchQ[action, {"Add1QubitGate", _String}],
-      MemberQ[CurrentValue["ModifierKeys"], "Control"]
+      MemberQ[CurrentValue["ModifierKeys"], "Control"],
+      Length[
+        Cases["1QubitGate"] @ circuit[[1, "Gates", All, 2, "Type"]]
+      ] > 0
     ],
     draw1QubitGateBox[
       {#[[1]], #[[2]]["Args"]},
@@ -260,7 +263,10 @@ drawTemporaryStuff[circuit_QCircuitGraphics, stuff_Association, action_] := With
   (* Remove 2 qubits gate mode *)
     And[
       MatchQ[action, {"Add2QubitGate", _String}],
-      MemberQ[CurrentValue["ModifierKeys"], "Control"]
+      MemberQ[CurrentValue["ModifierKeys"], "Control"],
+      Length[
+        Cases["2QubitGate"] @ circuit[[1, "Gates", All, 2, "Type"]]
+      ] > 0
     ],
     drawCPHASEGate[
       {#[[1]], #[[2]]["Args"]},
@@ -458,9 +464,9 @@ eventHandling[circuit_, action_, temporaryStuff_] /; MatchQ[circuit, _QCircuitGr
     temporaryStuff["2QubitGateInitialPoint"] = findClosestPointOnLine[
       MousePosition["Graphics"], circuit
     ],
-  (*  In the course of adding a 2 qubit gate.
-      This action is activated when the first element of a 2 qubit
-      gate has been added, but not the second one yet.
+  (* In the course of adding a 2 qubit gate.
+     This action is activated when the first element of a 2 qubit
+     gate has been added, but not the second one yet.
   *)
     MatchQ[action, {"Adding2QubitGate", _String}],
     With[{
