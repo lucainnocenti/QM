@@ -428,7 +428,7 @@ addDoubleRailObjectToQCircuit[
 Attributes[eventHandling] = {HoldAll};
 eventHandling[circuit_, action_, temporaryStuff_] /; MatchQ[circuit, _QCircuitGraphics] := {
   "MouseDown" :> Which[
-  (* Add a nice black point *)
+  (* Add a nice black point (only for debug) *)
     TrueQ[action == "AddPoint"],
     addSingleRailObjectToQCircuit[circuit,
       <|"Type" -> "Debug", "Name" -> "NiceDot"|>
@@ -437,14 +437,20 @@ eventHandling[circuit_, action_, temporaryStuff_] /; MatchQ[circuit, _QCircuitGr
      modifier is being pressed *)
     And[
       MatchQ[action, {"Add1QubitGate", _String}],
-      MemberQ[CurrentValue["ModifierKeys"], "Control"]
+      MemberQ[CurrentValue["ModifierKeys"], "Control"],
+      Length[
+        Cases["1QubitGate"] @ circuit[[1, "Gates", All, 2, "Type"]]
+      ] > 0
     ],
     circuit[[1, "Gates"]] = Delete[
       circuit[[1, "Gates"]],
       findOneQubitGateCloserToMouse[circuit]
     ],
   (* Add a 1 qubit gate*)
-    MatchQ[action, {"Add1QubitGate", _String}],
+    And[
+      MatchQ[action, {"Add1QubitGate", _String}],
+      Not @ MemberQ[CurrentValue["ModifierKeys"], "Control"]
+    ],
     addSingleRailObjectToQCircuit[circuit,
       <|"Type" -> "1QubitGate", "Name" -> action[[2]]|>
     ],
@@ -452,14 +458,20 @@ eventHandling[circuit_, action_, temporaryStuff_] /; MatchQ[circuit, _QCircuitGr
      modifier is being pressed *)
     And[
       MatchQ[action, {"Add2QubitGate", _String}],
-      MemberQ[CurrentValue["ModifierKeys"], "Control"]
+      MemberQ[CurrentValue["ModifierKeys"], "Control"],
+      Length[
+        Cases["2QubitGate"] @ circuit[[1, "Gates", All, 2, "Type"]]
+      ] > 0
     ],
     circuit[[1, "Gates"]] = Delete[
       circuit[[1, "Gates"]],
       findTwoQubitGateCloserToMouse[circuit]
     ],
   (* Add 2 qubit gates. *)
-    MatchQ[action, {"Add2QubitGate", _String}],
+    And[
+      MatchQ[action, {"Add2QubitGate", _String}],
+      Not @ MemberQ[CurrentValue["ModifierKeys"], "Control"]
+    ],
     action = {"Adding2QubitGate", action[[2]]};
     temporaryStuff["2QubitGateInitialPoint"] = findClosestPointOnLine[
       MousePosition["Graphics"], circuit
@@ -481,9 +493,7 @@ eventHandling[circuit_, action_, temporaryStuff_] /; MatchQ[circuit, _QCircuitGr
         Unset[temporaryStuff["2QubitGateInitialPoint"]];
         action = {"Add2QubitGate", action[[2]]}
       ]
-    ],
-    True,
-    Print["Nothing to be done, mate"]
+    ]
   ]
 };
 
