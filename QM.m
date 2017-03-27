@@ -69,6 +69,8 @@ QPartialTranspose::usage = "\
 QPartialTranspose[dm, n] computes the partial transpose of the density matrix dm with the respect to the n-th space.
 ";
 
+QStateBasePermutation;
+
 QEvolve::usage = "\
 QEvolve[qstate, evolutionMatrix] returs the state *qstate* evolved according to the specified *evolutionMatrix*.\
 ";
@@ -389,17 +391,14 @@ QPartialTrace::wrongDims =
 index over which to do the partial trace.";
 QPartialTrace[k_Integer][state_] := QPartialTrace[state, k];
 QPartialTrace[iQDensityMatrix[dm_, basis_], k_Integer] /; Length @ basis == 1 := Tr[dm];
-
 QPartialTrace[iQDensityMatrix[matrix_, bases_], indices_] := iQDensityMatrix[
   QPartialTrace[matrix, Length /@ bases, indices],
   bases
 ];
-
 QPartialTrace[matrix_, lengths_List, indexToTrace_Integer] := QPartialTrace[matrix,
   lengths,
   Complement[Range @ Length @ lengths, {indexToTrace}]
 ];
-
 QPartialTrace[matrix_, lengths_List, indicesToKeep_List] := With[{
   indicesToTrace = Complement[Range @ Length @ lengths, indicesToKeep]
 },
@@ -436,13 +435,26 @@ QPartialTranspose[matrix_?MatrixQ, basisLengths : {__Integer}, n_Integer] := Arr
     }
   ]
 ];
-
 QPartialTranspose[iQDensityMatrix[matrix_List, bases_List], dim_Integer] := Which[
   !(1 <= dim <= Length@bases), Message[QPartialTranspose::invalidDim],
-  Length@bases == 1, iQDensityMatrix[Transpose@matrix, bases],
+  Length@bases == 1, iQDensityMatrix[Transpose @ matrix, bases],
   True,
   iQDensityMatrix[QPartialTranspose[matrix, Length /@ bases, dim], bases]
 ];
+
+
+QStateBasePermutation[
+  matrix_?MatrixQ,
+  basisLengths : {__Integer},
+  newIndices : {__Integer}] := (
+(* Convert matrix to TensorProduct structure *)
+  ArrayReshape[matrix, Join[#, #] & @ basisLengths] //
+  (* Properly transpose the indices *)
+      Transpose[#, Join[newIndices, newIndices + Length @ basisLengths]]& //
+  (* Convert back into matrix structure *)
+      Flatten[#, {#, # + Length @ basisLengths}& @ Range @ Length @ basisLengths]&
+);
+
 
 
 QEvolve::dimMismatch = "The input matrix and the basis of the QState must have the same dimension.";
