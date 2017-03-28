@@ -12,13 +12,16 @@ ClearAll @@ Names["QM`*"];
 
 
 QState::usage = "\
-QState[amplitudes] generates a state with the specified amplitudes. The state is not renormalized by feault.
-QState[ampltudes, bases] generates a state with the specified amplitudes in the specified basis.";
+QState[amplitudes] generates a state with the specified amplitudes. The state \
+is not renormalized by feault.
+QState[ampltudes, bases] generates a state with the specified amplitudes in \
+the specified basis.";
 
 QDensityMatrix::usage = "\
-QDensityMatrix[amplitudes] generates a density matrix with the specified amplitudes, with basis labels automatically generated.
-QDensityMatrix[amplitudes, bases] generates a density matrix with the specified amplitudes and bases.
-";
+QDensityMatrix[amplitudes] generates a density matrix with the specified \
+amplitudes, with basis labels automatically generated.
+QDensityMatrix[amplitudes, bases] generates a density matrix with the specified \
+amplitudes and bases.";
 
 iQState::usage = "\
 iQState[amplitudes, basis] is the internal representation of a quantum state in ket representation.
@@ -72,12 +75,10 @@ QPartialTranspose[dm, n] computes the partial transpose of the density matrix dm
 QStateBasePermutation;
 
 QEvolve::usage = "\
-QEvolve[qstate, evolutionMatrix] returs the state *qstate* evolved according to the specified *evolutionMatrix*.\
-";
+QEvolve[qstate, evolutionMatrix] returns the state *qstate* evolved according to the specified *evolutionMatrix*.";
 
 QNormalize::usage = "\
-blabla
-";
+QNormalize[qstate] normalizes the state.";
 
 PureStateQ::usage = "PureStateQ[state] returns True if state is pure, checking if the trace of the square of state is equal to 1.";
 
@@ -386,9 +387,8 @@ iQDensityMatrix /: Eigenvalues[iQDensityMatrix[m_, _]] := Eigenvalues[m];
 iQDensityMatrix /: Eigenvectors[iQDensityMatrix[m_, _]] := Eigenvectors[m];
 
 
-QPartialTrace::wrongDims =
-    "The tensor product structure is not compatible with the specified \
-index over which to do the partial trace.";
+QPartialTrace::wrongDims = "The tensor product structure is not compatible with\
+ the specified index over which to do the partial trace.";
 QPartialTrace[k_Integer][state_] := QPartialTrace[state, k];
 QPartialTrace[iQDensityMatrix[dm_, basis_], k_Integer] /; Length @ basis == 1 := Tr[dm];
 QPartialTrace[iQDensityMatrix[matrix_, bases_], indices_] := iQDensityMatrix[
@@ -425,7 +425,11 @@ QPartialTrace[matrix_, lengths_List, indicesToKeep_List] := With[{
 QPartialTranspose::invalidDim = "The index of the basis for the partial transpose is not valid.";
 QPartialTranspose[n_Integer][state_] := QPartialTranspose[state, n];
 QPartialTranspose[n_Integer][m_, lengths_] := QPartialTranspose[m, lengths, n];
-QPartialTranspose[matrix_?MatrixQ, basisLengths : {__Integer}, n_Integer] := ArrayReshape[#, Dimensions@matrix] &@Transpose[
+QPartialTranspose[
+  matrix_?MatrixQ,
+  basisLengths : {__Integer},
+  n_Integer
+] := ArrayReshape[#, Dimensions@matrix] &@Transpose[
   ArrayReshape[matrix, Join[#, #] &@basisLengths],
   ReplacePart[
     Range[2 Length@basisLengths],
@@ -447,12 +451,12 @@ QStateBasePermutation[
   matrix_?MatrixQ,
   basisLengths : {__Integer},
   newIndices : {__Integer}] := (
-(* Convert matrix to TensorProduct structure *)
-  ArrayReshape[matrix, Join[#, #] & @ basisLengths] //
-  (* Properly transpose the indices *)
-      Transpose[#, Join[newIndices, newIndices + Length @ basisLengths]]& //
-  (* Convert back into matrix structure *)
-      Flatten[#, {#, # + Length @ basisLengths}& @ Range @ Length @ basisLengths]&
+    (* Convert matrix to TensorProduct structure *)
+    ArrayReshape[matrix, Join[#, #] & @ basisLengths] //
+    (* Properly transpose the indices *)
+    Transpose[#, Join[newIndices, newIndices + Length @ basisLengths]]& //
+    (* Convert back into matrix structure *)
+    Flatten[#, {#, # + Length @ basisLengths}& @ Range @ Length @ basisLengths]&
 );
 
 
@@ -485,7 +489,11 @@ QNormalize[iQState[amps_, basis_]] := iQState[
   basis
 ];
 
-PureStateQ[iQDensityMatrix[matrix_, basis_]] := Chop[N @ Tr[matrix . matrix]] == 1;
+(* Returns True if the density matrix represents a pure state *)
+PureStateQ[iQDensityMatrix[matrix_, basis_]] := Equal[
+  Chop[N @ Tr @ Dot[matrix, matrix]],
+  1
+];
 
 
 (* Generate a random unitary matrix, drawn from the uniform distribution.
@@ -503,7 +511,11 @@ With[{syms = Names["QM`QM`*"]},
 ];
 
 (* Unprotect changeable Symbols *)
-Unprotect[$iQStateAutoNormalize, $iQStatePrettyPrint, $iQStatePrettyPrintMagnification];
+Unprotect[
+  $iQStateAutoNormalize,
+  $iQStatePrettyPrint,
+  $iQStatePrettyPrintMagnification
+];
 
 End[];
 EndPackage[];
