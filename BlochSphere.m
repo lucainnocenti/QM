@@ -86,37 +86,41 @@ texKet[ns : {__}, magnification_ : 2, useMatex_ : True] := If[TrueQ@useMatex,
 
 
 (* Generate and assemble the graphics primitive to draw a (static) Bloch sphere *)
-Options[QBlochSphere] = {"Labels" -> True};
-QBlochSphere[OptionsPattern[]] := If[TrueQ @ OptionValue @ "Labels",
-  With[{
-    kets = texKet@{0, 1, "+", "-", "L", "R"}
-  },
+Options[QBlochSphere] = {"Labels" -> True, "Barebones" -> False};
+QBlochSphere[opts : OptionsPattern[]] := QBlochSphere[opts] = {
+  {White, Opacity@0.2, Sphere[{0, 0, 0}, 1]},
+  If[Not @ TrueQ @ OptionValue @ "Barebones",
     {
-      White, Opacity@0.2, Sphere[{0, 0, 0}, 1],
-      Opacity@1, Thickness@0.004, PointSize@0.02,
+      Thickness@0.004, PointSize@0.02,
       Red, pointsAndConnection@{{0, 0, 1}, {0, 0, -1}},
       Blue, pointsAndConnection@{{1, 0, 0}, {-1, 0, 0}},
-      Darker@Green, pointsAndConnection@{{0, 1, 0}, {0, -1, 0}},
-      Black, Point[{0, 0, 0}],
-      Text[kets[[1]], {0, 0, 1.2}],
-      Text[kets[[2]], {0, 0, -1.2}],
-      Text[kets[[3]], {1.2, 0, 0}],
-      Text[kets[[4]], {-1.2, 0, 0}],
-      Text[kets[[5]], {0, 1.2, 0}],
-      Text[kets[[6]], {0, -1.2, 0}],
-      Gray, Thin, surroundingCircles
-    }
+      Darker@Green, pointsAndConnection@{{0, 1, 0}, {0, -1, 0}}
+    },
+    Sequence[]
   ],
-  {
-    White, Opacity@0.2, Sphere[{0, 0, 0}, 1],
-    Opacity@1, Thickness@0.004, PointSize@0.02,
-    Red, pointsAndConnection@{{0, 0, 1}, {0, 0, -1}},
-    Blue, pointsAndConnection@{{1, 0, 0}, {-1, 0, 0}},
-    Darker@Green, pointsAndConnection@{{0, 1, 0}, {0, -1, 0}},
-    Black, Point[{0, 0, 0}],
-    Gray, Thin, surroundingCircles
-  }
-];
+  Black, Point[{0, 0, 0}],
+(* Add labels if asked for *)
+  If[
+    And[
+      TrueQ @ OptionValue @ "Labels",
+      Not @ TrueQ @ OptionValue @ "Barebones"
+    ],
+    With[{
+      kets = texKet@{0, 1, "+", "-", "L", "R"}
+    },
+      {
+        Text[kets[[1]], {0, 0, 1.2}],
+        Text[kets[[2]], {0, 0, -1.2}],
+        Text[kets[[3]], {1.2, 0, 0}],
+        Text[kets[[4]], {-1.2, 0, 0}],
+        Text[kets[[5]], {0, 1.2, 0}],
+        Text[kets[[6]], {0, -1.2, 0}]
+      }
+    ],
+    Sequence[]
+  ],
+  Gray, Thin, surroundingCircles
+};
 
 
 (* Compute density matrix corresponding to given coordinates of the Bloch sphere *)
@@ -138,23 +142,25 @@ QBlochSphereCoordinates[amps : {_, _}] := Block[{
 },
   namps = {1, 2 ArcCos[First @ namps], Arg[Last @ namps]};
   Which[
-    MatchQ[namps, {1, 0, _}], {0, 0, 1},
-    MatchQ[namps, {1, Pi, _}] , {0, 0, -1},
+    MatchQ[namps, {_?(# == 1 &), _?(# == 0 &), _}], {0, 0, 1},
+    MatchQ[namps, {_?(# == 1 &), _?(# == Pi &), _}] , {0, 0, -1},
     True,
     FromSphericalCoordinates @ namps
   ]
 ];
 
 
-QBlochSphereForm[
-  iQState[amps_, bases_]
-] /; (Length @ bases == 1 && Length @ amps == 2) := Graphics3D[{
-  QBlochSphere[],
+Options[QBlochSphereForm] = {"Labels" -> True, "Barebones" -> False};
+AppendTo[Options @ QBlochSphereForm, Options @ Graphics3D];
+QBlochSphereForm[iQState[amps_, bases_], opts : OptionsPattern[]] /;
+    (Length @ bases == 1 && Length @ amps == 2) := Graphics3D[{
+  QBlochSphere[Sequence @@ FilterRules[{opts}, Options @ QBlochSphere]],
   {
     Point @ #,
     Arrow @ {{0, 0, 0}, #}
   }& @ QBlochSphereCoordinates[amps]
 },
+  Evaluate @ FilterRules[{opts}, Options @ Graphics3D],
   Boxed -> False
 ];
 
@@ -162,6 +168,8 @@ QBlochSphereForm[
 With[{syms = Names["QM`BlochSphere`*"]},
   SetAttributes[syms, {Protected, ReadProtected}]
 ];
+
+Unprotect[QBlochSphere];
 
 End[]; (* End Private context *)
 EndPackage[];
