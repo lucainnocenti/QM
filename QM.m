@@ -176,7 +176,7 @@ QState[opts : OptionsPattern[]] := With[{
   ]
 ];
 QState[amps_] := QState["Amplitudes" -> amps];
-QState[amps_, basis_] := QState["Amplitudes" -> amps, "BasisStates" -> basis];
+QState[amps_, basis_] := QState["Amplitudes" -> amps, "BasisLabels" -> basis];
 
 
 notableQStates[] := "To implement useful message";
@@ -186,7 +186,12 @@ notableQStates[str_String] /; (
   QState["Amplitudes" -> <|# -> 1|>, "BasisLabels" -> {0, 1}] &,
   Characters @ str
 ];
-
+notableQStates["BellStates"] := {
+  QState@"00" + QState@"11",
+  QState@"00" - QState@"11",
+  QState@"01" + QState@"10",
+  QState@"01" - QState@"10"
+};
 
 
 QDensityMatrix::basiserr = "The given basis is not valid. It must be a list of \
@@ -251,7 +256,8 @@ iQState /: MakeBoxes[iQState[amps_, bases_], StandardForm] := If[TrueQ@$iQStateP
 ];
 
 
-(* ----------------------- HANDLING OF STATES ALGEBRA ----------------------------- *)
+(* ------ HANDLING OF STATES ALGEBRA ------ *)
+
 SetAttributes[QEnv, HoldAll];
 QEnv[expr_] := With[{
   rules = {Plus -> QPlus}
@@ -423,16 +429,29 @@ iQDensityMatrix /: Eigenvectors[iQDensityMatrix[m_, _]] := Eigenvectors[m];
 QPartialTrace::wrongDims = "The tensor product structure is not compatible with\
  the specified index over which to do the partial trace.";
 QPartialTrace[k_Integer][state_] := QPartialTrace[state, k];
-QPartialTrace[iQDensityMatrix[dm_, basis_], k_Integer] /; Length @ basis == 1 := Tr[dm];
-QPartialTrace[iQDensityMatrix[matrix_, bases_], indices_] := iQDensityMatrix[
-  QPartialTrace[matrix, Length /@ bases, indices],
-  bases
+QPartialTrace[iQDensityMatrix[matrix_, basis_], k_Integer] /;
+  (Length @ basis == 1) := Tr[matrix];
+QPartialTrace[iQDensityMatrix[matrix_, basis_], k_Integer] :=
+  iQDensityMatrix[
+    QPartialTrace[matrix, Length /@ basis, k],
+    Drop[basis, {k}]
+  ];
+QPartialTrace[iQDensityMatrix[matrix_, bases_], indices_List] :=
+  iQDensityMatrix[
+    QPartialTrace[matrix, Length /@ bases, indices],
+    bases[[indices]]
+  ];
+(* If the first argument is a ket state, it is converted to a density matrix
+   and QPartialTrace evaluated over the corresponding density matrix. *)
+QPartialTrace[ket_iQState, args__] := QPartialTrace[
+  QStateToDensityMatrix[ket], args
 ];
-QPartialTrace[matrix_, lengths_List, indexToTrace_Integer] := QPartialTrace[matrix,
-  lengths,
-  Complement[Range @ Length @ lengths, {indexToTrace}]
-];
-QPartialTrace[matrix_, lengths_List, indicesToKeep_List] := With[{
+QPartialTrace[matrix_?MatrixQ, lengths_List, indexToTrace_Integer] :=
+  QPartialTrace[matrix,
+    lengths,
+    Complement[Range @ Length @ lengths, {indexToTrace}]
+  ];
+QPartialTrace[matrix_?MatrixQ, lengths_List, indicesToKeep_List] := With[{
   indicesToTrace = Complement[Range @ Length @ lengths, indicesToKeep]
 },
   With[{
@@ -455,7 +474,8 @@ QPartialTrace[matrix_, lengths_List, indicesToKeep_List] := With[{
 ];
 
 
-QPartialTranspose::invalidDim = "The index of the basis for the partial transpose is not valid.";
+QPartialTranspose::invalidDim = "The index of the basis for the partial \
+transpose is not valid.";
 QPartialTranspose[n_Integer][state_] := QPartialTranspose[state, n];
 QPartialTranspose[n_Integer][m_, lengths_] := QPartialTranspose[m, lengths, n];
 QPartialTranspose[
