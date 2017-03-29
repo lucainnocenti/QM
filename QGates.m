@@ -21,8 +21,12 @@ PauliX;
 PauliY;
 PauliZ;
 
-TwoQubitGate::usage = "\
-TwoQubitGate[numQubits, control, target, matrix] returns the matrix representing the gate `matrix` between the control and the target qubit.";
+QOneQubitGate::usage = "\
+QOneQubitGate[numQubits, target, matrix] returns the matrix representing the \
+action of the one qubit gate `matrix` on the target qubit.";
+QTwoQubitGate::usage = "\
+QTwoQubitGate[numQubits, control, target, matrix] returns the matrix representing the gate `matrix` between the control and the target qubit.";
+
 Toffoli;
 
 Begin["`Private`"];
@@ -39,7 +43,7 @@ p11 = ProjectionMatrix[1, 1, 1];
 p22 = ProjectionMatrix[1, 2, 2];
 
 
-OneQubitGate[numQubits_Integer, target_Integer, matrix_] := Block[
+QOneQubitGate[numQubits_Integer, target_Integer, matrix_] := Block[
   {identities},
   identities = ConstantArray[
     IdentityMatrix @ 2, numQubits
@@ -55,14 +59,25 @@ OneQubitGate[numQubits_Integer, target_Integer, matrix_] := Block[
    we first write the matrix describing the two-qubit gate
    acting on the last two qubits, and then permute the indices
    appropriately.*)
-TwoQubitGate[numQubits_Integer, control_Integer, target_Integer, matrix_] := Block[
-  {tp, matrixAsTP, transposedBigTP},
-(* Initialize a list of 2 dimensional identity matrices *)
-  matrixAsTP = Transpose[ArrayReshape[matrix, {2, 2, 2, 2}], {1, 3, 2, 4}];
+QTwoQubitGate[numQubits_Integer,
+              control_Integer,
+              target_Integer,
+              matrix_
+  ] := Block[{tp, matrixAsTP, transposedBigTP},
+  (* Convert matrix to a TensorProduct structure *)
+  matrixAsTP = Transpose[
+    ArrayReshape[matrix,
+      {2, 2, 2, 2}], {1, 3, 2, 4}
+    ];
+  (* Make the rest of the identity matrices comprising the total matrix of the
+     gate, and then put everything (identity matrices and restructured `matrix`)
+     together with TensorProduct *)
   tp = TensorProduct[
     TensorProduct @@ ConstantArray[IdentityMatrix @ 2, numQubits - 2],
     matrixAsTP
   ];
+  (* Transpose the nested List produced by TensorProduct to make `matrix`
+     operate on the control and target qubits *)
   transposedBigTP = Transpose[tp,
     Sequence @@ {2 # - 1, 2 #} & /@
         {
@@ -71,7 +86,8 @@ TwoQubitGate[numQubits_Integer, control_Integer, target_Integer, matrix_] := Blo
           target
         }
   ];
-  (* Rearrange indices and flatten TensorProduct into a KroneckerProduct structure *)
+  (* Rearrange and flatten indices to convert the TensorProduct into a matrix
+     compatible with the output of a KroneckerProduct operation *)
   Flatten[transposedBigTP,
     {
       Range[1, 2 numQubits, 2],
@@ -81,23 +97,31 @@ TwoQubitGate[numQubits_Integer, control_Integer, target_Integer, matrix_] := Blo
 ];
 
 
-Hadamard[numQubits_Integer, target_Integer] := OneQubitGate[numQubits, target, HadamardMatrix[2]];
+Hadamard[numQubits_Integer, target_Integer] := QOneQubitGate[
+  numQubits, target, HadamardMatrix[2]
+];
 Hadamard[numQubits_, {target_}] := Hadamard[numQubits, target];
 Hadamard[target_] := Hadamard[1, 1];
 Hadamard[] := Hadamard[1, 1];
 
 
-PauliX[numQubits_Integer, target_Integer] := OneQubitGate[numQubits, target, PauliMatrix[1]];
+PauliX[numQubits_Integer, target_Integer] := QOneQubitGate[
+  numQubits, target, PauliMatrix[1]
+];
 PauliX[numQubits_, {target_}] := PauliX[numQubits, target];
 PauliX[target_] := PauliX[1, 1];
 PauliX[] = PauliX[1, 1];
 
-PauliY[numQubits_Integer, target_Integer] := OneQubitGate[numQubits, target, PauliMatrix[2]];
+PauliY[numQubits_Integer, target_Integer] := QOneQubitGate[
+  numQubits, target, PauliMatrix[2]
+];
 PauliY[numQubits_, {target_}] := PauliY[numQubits, target];
 PauliY[target_] := PauliY[1, 1];
 PauliY[] = PauliY[1, 1];
 
-PauliZ[numQubits_Integer, target_Integer] := OneQubitGate[numQubits, target, PauliMatrix[3]];
+PauliZ[numQubits_Integer, target_Integer] := QOneQubitGate[
+  numQubits, target, PauliMatrix[3]
+];
 PauliZ[numQubits_, {target_}] := PauliZ[numQubits, target];
 PauliZ[target_] := PauliZ[1, 1];
 PauliZ[] = PauliZ[1, 1];
@@ -105,13 +129,12 @@ PauliZ[] = PauliZ[1, 1];
 
 (* -------- TWO QUBIT GATES -------- *)
 
-
 (* CPhase is the controlled phase gate *)
 CPhase[] := Plus[
   KP[{{1, 0}, {0, 0}}, IdentityMatrix @ 2],
   KP[{{0, 0}, {0, 1}}, PauliZ[]]
 ];
-CPhase[numQubits_Integer, control_Integer, target_Integer] := TwoQubitGate[
+CPhase[numQubits_Integer, control_Integer, target_Integer] := QTwoQubitGate[
   numQubits, control, target, CPhase[]
 ];
 CPhase[numQubits_, {control_, target_}] := CPhase[
@@ -122,12 +145,12 @@ CPhase[control_, target_] := CPhase[
 ];
 
 
-(* `CNot` is the controlled-not gate *)
+(* `CNOT` is the controlled-not gate *)
 CNot[] := Plus[
   KP[{{1, 0}, {0, 0}}, IdentityMatrix @ 2],
   KP[{{0, 0}, {0, 1}}, PauliX[]]
 ];
-CNot[numQubits_Integer, control_Integer, target_Integer] := TwoQubitGate[
+CNot[numQubits_Integer, control_Integer, target_Integer] := QTwoQubitGate[
   numQubits, control, target, CNot[]
 ];
 CNot[numQubits_, {control_, target_}] := CNot[
