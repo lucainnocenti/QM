@@ -87,6 +87,8 @@ TensorProductFromMatrix::usage = "TensorProductFromMatrix[matrix, {n1, n2, ...}]
 
 RandomUnitary::usage = "RandomUnitary[m] returns an mxm Haar-random unitary matrix.";
 
+(* Notable quantum states*)
+
 Begin["`Private`"];
 
 (* fillAmps gives back an Association of label->amplitude rules which spans all of the basis states.
@@ -99,11 +101,9 @@ fillAmps[amps_Association, basis_List] :=
 
 
 qstateParseAmps[amps_] := Which[
-(* return error and abort if no amplitude is provided *)
+  (* Issue Message and abort if no amplitude is provided *)
   amps === None, Message[QState::ampsMissing]; Abort[],
-(* return error and abort if something else than an association is given *)
-(* Head@amps =!= Association, Message[QState::ampsMustBeAss]; Abort[], *)
-(* otherwise, the Association amps is given back, with the labels converted to strings *)
+
   Head @ amps === Association,
   KeyMap[ToString, amps],
   Head @ amps === List,
@@ -125,37 +125,45 @@ QState::ampsUnrecognized = "Unrecognized format for the amplitudes.";
 QState::mismatchAmps = "Some basis labels specified as amplitudes are not included in the list of basis states labels.";
 
 (* QState does not handle direct specification of tensor product bases, for now *)
-Options[QState] = {"Amplitudes" -> None, "BasisStates" -> None};
+Options[QState] = {"Amplitudes" -> None, "BasisLabels" -> None};
+(* If not argument or a single String argument is provided, then the evaluation
+   is passed on to `notableQStates`, which returns a suitable special iQState.
+   With not input arguments, the default behaviour of notableQStates is to
+   return the list of accepted names for notable quantum states *)
+QState[] := notableQStates[];
+QState[notableStateName_String] := notableQStates[notableStateName];
+
 QState[opts : OptionsPattern[]] := With[{
   amps = qstateParseAmps[OptionValue @ "Amplitudes"],
-  basis = qstateParseBasis[OptionValue @ "BasisStates"]
+  basis = qstateParseBasis[OptionValue @ "BasisLabels"]
 },
   Which[
-  (* If no basis state is provided, the labels given as "Amplitudes" are used instead *)
+    (* If no basis state is provided, the labels given as "Amplitudes" are used instead *)
     (basis === None) && (Head @ amps === Association),
     iQState[
       Developer`ToPackedArray @ Values @ amps,
       {Keys @ amps}
     ],
-  (* For no base labels and no labels given as Amplitudes, use integers as labels *)
+    (* For no base labels and no labels given as Amplitudes, use integers as labels *)
     (basis === None) && (Head @ amps === List),
     iQState[
       Developer`ToPackedArray @ amps,
       {ToString /@ Range @ Length @ amps}
     ],
-  (* If a list of amplitudes is provided it must have the same length as the list of basis elements specified *)
+    (* If a list of amplitudes is provided together with a basis, they must
+       have the same length for consistency *)
     (Head @ amps === List) && (Length @ amps != Length @ basis),
     Message[QState::mismatchAmps]; Abort[],
-  (* If the length of the amplitudes and basis match we proceed in saving the state into the iQState wrapper *)
+    (* If the length of the amplitudes and basis match we proceed in saving the state into the iQState wrapper *)
     (Head @ amps === List) && (Length @ amps == Length @ basis),
     iQState[
       Developer`ToPackedArray @ amps,
       If[TensorRank[basis] == 1, {basis}, basis]
     ],
-  (* The labels used to specify the amplitudes must be included in the ones specified for the basis *)
+    (* The labels used to specify the amplitudes must be included in the ones specified for the basis *)
     ! SubsetQ[basis, Keys @ amps],
     Message[QState::mismatchAmps]; Abort[],
-  (* Otherwise, if both amplitudes and basis are provided and are compatible with each other, use the latter to complete the former *)
+    (* Otherwise, if both amplitudes and basis are provided and are compatible with each other, use the latter to complete the former *)
     True,
     iQState[
       Developer`ToPackedArray[fillAmps[amps, basis]],
@@ -171,14 +179,39 @@ QState[amps_] := QState["Amplitudes" -> amps];
 QState[amps_, basis_] := QState["Amplitudes" -> amps, "BasisStates" -> basis];
 
 
+notableQStates[] := "To implement useful message";
+notableQStates[str_String] /; (
+  StringMatchQ[str, ("0" | "1")..]
+) := QTensorProduct @@ Map[
+  QState["Amplitudes" -> <|# -> 1|>, "BasisLabels" -> {0, 1}] &,
+  Characters @ str
+];
+
+
+
+QDensityMatrix::basiserr = "The given basis is not valid. It must be a list of \
+lists. It was instead `1`.";
 QDensityMatrix[matrix_, basis_ : None] := Which[
+  (* If no basis is provided, it is assumed that the matrix refers to a state
+     living in a single high-dimensional Hilbert space (that is, a single
+     qudit) *)
   (basis === None && MatrixQ @ matrix),
   iQDensityMatrix[
     Developer`ToPackedArray @ matrix,
     {ToString /@ Range @ Length @ matrix}
   ],
   True,
-  Print["YEHIIII"]
+  (* Check that the provided basis makes sense, and return with error if it
+     doesn't *)
+  If[!MatchQ[basis, {{__}..}],
+    Message[QDensityMatrix::basiserr, basis];
+    Return[$Failed];
+  ];
+  (* If it does, stringify it and return the iQDensityMatrix object *)
+  iQDensityMatrix[
+    matrix,
+    Map[ToString, basis, {2}]
+  ]
 ];
 
 
@@ -447,21 +480,38 @@ QPartialTranspose[iQDensityMatrix[matrix_List, bases_List], dim_Integer] := Whic
 ];
 
 
+QStateBasePermutation::badargs = "`1` is not a valid set of arguments.";
 QStateBasePermutation[
   matrix_?MatrixQ,
   basisLengths : {__Integer},
-  newIndices : {__Integer}] := (
+  newIndices : {__Integer}
+] := (
     (* Convert matrix to TensorProduct structure *)
     ArrayReshape[matrix, Join[#, #] & @ basisLengths] //
     (* Properly transpose the indices *)
     Transpose[#, Join[newIndices, newIndices + Length @ basisLengths]]& //
     (* Convert back into matrix structure *)
-    Flatten[#, {#, # + Length @ basisLengths}& @ Range @ Length @ basisLengths]&
+    Flatten[#,
+      {#, # + Length @ basisLengths}& @ Range @ Length @ basisLengths
+    ]&
 );
+QStateBasePermutation[
+  iQDensityMatrix[matrix_, basis_],
+  newIndices : {__Integer}
+] := iQDensityMatrix[
+  QStateBasePermutation[
+    matrix,
+    Length /@ basis,
+    newIndices
+  ],
+  basis
+];
+QStateBasePermutation[args___] := Null /;
+  Message[QStateBasePermutation::badargs, {args}];
 
 
-
-QEvolve::dimMismatch = "The input matrix and the basis of the QState must have the same dimension.";
+QEvolve::dimMismatch = "The input matrix and the basis of the QState must have \
+the same dimension.";
 QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] /; Length @ matrix == Length @ amps := iQState[
   matrix . amps,
   basis
