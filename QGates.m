@@ -28,6 +28,7 @@ QTwoQubitGate::usage = "\
 QTwoQubitGate[numQubits, control, target, matrix] returns the matrix representing the gate `matrix` between the control and the target qubit.";
 
 Toffoli;
+Fredkin;
 
 Begin["`Private`"];
 
@@ -96,35 +97,23 @@ QTwoQubitGate[numQubits_Integer,
   ]
 ];
 
+(* defineOneQubitGateFunctions is a "macro" to easily create the downvalues
+   associated functions defining one qubit gates *)
+Attributes[defineOneQubitGateFunctions] = {HoldRest};
+defineOneQubitGateFunctions[name_Symbol, matrix_] := (
+  name[numQubits_Integer, target_Integer] := QOneQubitGate[
+    numQubits, target, matrix
+  ];
+  name[numQubits_, {target_}] := name[numQubits, target];
+  name[target_] := name[1, 1];
+  name[] := name[1, 1];
+);
 
-Hadamard[numQubits_Integer, target_Integer] := QOneQubitGate[
-  numQubits, target, HadamardMatrix[2]
-];
-Hadamard[numQubits_, {target_}] := Hadamard[numQubits, target];
-Hadamard[target_] := Hadamard[1, 1];
-Hadamard[] := Hadamard[1, 1];
 
-
-PauliX[numQubits_Integer, target_Integer] := QOneQubitGate[
-  numQubits, target, PauliMatrix[1]
-];
-PauliX[numQubits_, {target_}] := PauliX[numQubits, target];
-PauliX[target_] := PauliX[1, 1];
-PauliX[] = PauliX[1, 1];
-
-PauliY[numQubits_Integer, target_Integer] := QOneQubitGate[
-  numQubits, target, PauliMatrix[2]
-];
-PauliY[numQubits_, {target_}] := PauliY[numQubits, target];
-PauliY[target_] := PauliY[1, 1];
-PauliY[] = PauliY[1, 1];
-
-PauliZ[numQubits_Integer, target_Integer] := QOneQubitGate[
-  numQubits, target, PauliMatrix[3]
-];
-PauliZ[numQubits_, {target_}] := PauliZ[numQubits, target];
-PauliZ[target_] := PauliZ[1, 1];
-PauliZ[] = PauliZ[1, 1];
+defineOneQubitGateFunctions[Hadamard, HadamardMatrix @ 2];
+defineOneQubitGateFunctions[PauliX, PauliMatrix @ 1];
+defineOneQubitGateFunctions[PauliY, PauliMatrix @ 2];
+defineOneQubitGateFunctions[PauliZ, PauliMatrix @ 3];
 
 
 (* -------- TWO QUBIT GATES -------- *)
