@@ -131,7 +131,7 @@ defineOneQubitGateFunctions[name_Symbol, matrix_] := (
     PauliProduct[0, 3] == KP[PauliMatrix[0], PauliZ[]],
     PauliProduct[2] == PauliY[] == PauliMatrix[2].
 *)
-PauliProduct[idx_Integer] /; 0 <= idx <= 3 := PauliMatrix[idx];
+PauliProduct[idx_] := PauliMatrix[idx];
 PauliProduct[indices__Integer] /; And @@ Thread[0 <= indices <= 3] :=
   KP @@ PauliMatrix /@ {indices};
 
