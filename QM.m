@@ -248,7 +248,7 @@ iQState::cannotSumDifferentBases = "Quantum states over different bases cannot b
 iQState /: Plus[state1_iQState, state2_iQState] := QPlus[state1, state2];
 iQState /: Times[x_, iQState[amps_, bases_]] := iQState[x amps, bases];
 
-iQState /: MakeBoxes[iQState[amps_, bases_], StandardForm] := If[TrueQ@$iQStatePrettyPrint,
+iQState /: MakeBoxes[iQState[amps_List, bases_List], StandardForm] := If[TrueQ@$iQStatePrettyPrint,
   ToBoxes @ qStatePrettyPrint@iQState[amps, bases],
   RowBox @ {
     "iQState", "[", ToBoxes@amps, ",", ToBoxes@bases, "]"
