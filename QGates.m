@@ -41,7 +41,10 @@ QOneQubitGate[numQubits, target, matrix] returns the matrix representing the \
 action of the one qubit gate `matrix` on the target qubit.";
 QTwoQubitGate::usage = "\
 QTwoQubitGate[numQubits, control, target, matrix] returns the matrix representing the gate `matrix` between the control and the target qubit.";
+QThreeQubitGate::usage = "\
+QThreeQubitGate[numQubits, q1, q2, q3, matrix] returns the matrix representing the gate `matrix` between the three qubits q1, q2 and q3.";
 
+Swap;
 Toffoli;
 Fredkin;
 
@@ -82,8 +85,8 @@ QTwoQubitGate[numQubits_Integer,
   ] := Block[{tp, matrixAsTP, transposedBigTP},
   (* Convert matrix to a TensorProduct structure *)
   matrixAsTP = Transpose[
-    ArrayReshape[matrix,
-      {2, 2, 2, 2}], {1, 3, 2, 4}
+    ArrayReshape[matrix, {2, 2, 2, 2}],
+    {1, 3, 2, 4}
     ];
   (* Make the rest of the identity matrices comprising the total matrix of the
      gate, and then put everything (identity matrices and restructured `matrix`)
@@ -112,6 +115,43 @@ QTwoQubitGate[numQubits_Integer,
   ]
 ];
 
+QThreeQubitGate[numQubits_Integer,
+                q1_Integer,
+                q2_Integer,
+                q3_Integer,
+                matrix_
+  ] /; numQubits >= 3 := Block[{tp, matrixAsTP, transposedBigTP},
+  (* Convert matrix to a TensorProduct structure *)
+  matrixAsTP = Transpose[
+    ArrayReshape[matrix, {2, 2, 2, 2, 2, 2}],
+    {1, 3, 5, 2, 4, 6}
+  ];
+  (* Make the rest of the identity matrices comprising the total matrix of the
+     gate, and then put everything (identity matrices and restructured `matrix`)
+     together with TensorProduct *)
+  tp = TensorProduct[
+    TensorProduct @@ ConstantArray[IdentityMatrix @ 2, numQubits - 3],
+    matrixAsTP
+  ];
+  (* Transpose the nested List produced by TensorProduct to make `matrix`
+     operate on the control and target qubits *)
+  transposedBigTP = Transpose[tp,
+    Sequence @@ {2 # - 1, 2 #} & /@
+        {
+          Sequence @@ Complement[Range @ numQubits, {q1, q2, q3}],
+          q1, q2, q3
+        }
+  ];
+  (* Rearrange and flatten indices to convert the TensorProduct into a matrix
+     compatible with the output of a KroneckerProduct operation *)
+  Flatten[transposedBigTP,
+    {
+      Range[1, 2 numQubits, 2],
+      Range[2, 2 numQubits, 2]
+    }
+  ]
+];
+
 (* defineOneQubitGateFunctions is a "macro" to easily create the downvalues
    associated functions defining one qubit gates *)
 Attributes[defineOneQubitGateFunctions] = {HoldRest};
@@ -120,7 +160,7 @@ defineOneQubitGateFunctions[name_Symbol, matrix_] := (
     numQubits, target, matrix
   ];
   name[numQubits_, {target_}] := name[numQubits, target];
-  name[target_] := name[1, 1];
+  name[numQubits_Integer] := KP @@ ConstantArray[name[1, 1], numQubits];
   name[] := name[1, 1];
 );
 
@@ -174,6 +214,11 @@ CNot[numQubits_, {control_, target_}] := CNot[
 CNot[control_, target_] := CNot[
   2, control, target
 ];
+
+Swap[] := {{1, 0, 0, 0},
+           {0, 0, 1, 0},
+           {0, 1, 0, 0},
+           {0, 0, 0, 1}};
 
 
 (* -------- THREE QUBIT GATES -------- *)
