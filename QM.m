@@ -64,9 +64,11 @@ QDM2Matrix[iQDensityMatrix[tp, basis]] returns the regular matrix representation
 ";
 
 QPartialTrace::usage = "\
-QPartialTrace[matrix, k] computes the partial trace with respect to the k-th space.
-QPartialTrace[matrix, indicesToKeep] computes the partial trace of all the bases, except for the given ones.\
-";
+QPartialTrace[matrix, baseIndices, k] computes the partial trace with respect \
+to the k-th space, assuming that the dimensions of the tensor product space in \
+which matrix lives are the one specified in baseIndices.
+QPartialTrace[matrix, baseIndices, indicesToKeep] does the same as above, but \
+the third input specified the indices to keep, instead of those to trace out.";
 
 QPartialTranspose::usage = "\
 QPartialTranspose[dm, n] computes the partial transpose of the density matrix dm with the respect to the n-th space.
