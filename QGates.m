@@ -152,18 +152,6 @@ QThreeQubitGate[numQubits_Integer,
   ]
 ];
 
-(* defineOneQubitGateFunctions is a "macro" to easily create the downvalues
-   associated functions defining one qubit gates *)
-Attributes[defineOneQubitGateFunctions] = {HoldRest};
-defineOneQubitGateFunctions[name_Symbol, matrix_] := (
-  name[numQubits_Integer, target_Integer] := QOneQubitGate[
-    numQubits, target, matrix
-  ];
-  name[numQubits_, {target_}] := name[numQubits, target];
-  name[numQubits_Integer] := KP @@ ConstantArray[name[1, 1], numQubits];
-  name[] := name[1, 1];
-);
-
 
 (*
   For example,
@@ -176,6 +164,47 @@ PauliProduct[indices__Integer] /; And @@ Thread[0 <= {indices} <= 3] :=
   KP @@ PauliMatrix /@ {indices};
 
 
+(* defineOneQubitGateFunctions is a "macro" to easily create the downvalues
+   associated functions defining one qubit gates *)
+Attributes[defineOneQubitGateFunctions] = {HoldRest};
+defineOneQubitGateFunctions[name_Symbol, matrix_] := (
+  name[] = matrix;
+  name[numQubits_Integer, target_Integer] := QOneQubitGate[
+    numQubits, target, name[]
+  ];
+  name[numQubits_Integer, {target_Integer}] := name[numQubits, target];
+  name[numQubits_Integer] := name[numQubits, numQubits];
+);
+
+Attributes[defineTwoQubitGateFunctions] = HoldRest;
+defineTwoQubitGateFunctions[name_Symbol, matrix_] := (
+  name[] := matrix;
+  name[numQubits_Integer, q1_Integer, q2_Integer] := QTwoQubitGate[
+    numQubits, q1, q2, name[]
+  ];
+  name[numQubits_Integer, {q1_, q2_}] := name[numQubits, q1, q2];
+  name[q1_Integer, q2_Integer] := name[Max @ {q1, q2}, q1, q2];
+);
+
+Attributes[defineThreeQubitGateFunctions] = HoldRest;
+defineThreeQubitGateFunctions[name_Symbol, matrix_] := (
+  name[] := matrix;
+  name[numQubits_Integer,
+       q1_Integer, q2_Integer, q3_Integer
+    ] /; TrueQ @ And[
+      And @@ Thread[1 <= {q1, q2, q3} <= numQubits],
+      Length @ Union @ {q1, q2, q3} == 3
+    ] := QThreeQubitGate[numQubits, q1, q2, q3, name[]];
+  name[numQubits_Integer, {q1_, q2_, q3_}] := name[numQubits, q1, q2, q3];
+  name[q1_Integer, q2_Integer, q3_Integer] := name[
+    Max @ {q1, q2, q3}, q1, q2, q3
+  ];
+  (* Error handling *)
+  name::badArgs = "Incorrect inputs.";
+  name[args___] /; Message[name::badArgs] := Null;
+);
+
+
 defineOneQubitGateFunctions[Hadamard, HadamardMatrix @ 2];
 defineOneQubitGateFunctions[PauliX, PauliMatrix @ 1];
 defineOneQubitGateFunctions[PauliY, PauliMatrix @ 2];
@@ -184,62 +213,48 @@ defineOneQubitGateFunctions[PauliZ, PauliMatrix @ 3];
 
 (* -------- TWO QUBIT GATES -------- *)
 
-(* CPhase is the controlled phase gate *)
-CPhase[] := Plus[
-  KP[{{1, 0}, {0, 0}}, IdentityMatrix @ 2],
-  KP[{{0, 0}, {0, 1}}, PauliZ[]]
-];
-CPhase[numQubits_Integer, control_Integer, target_Integer] := QTwoQubitGate[
-  numQubits, control, target, CPhase[]
-];
-CPhase[numQubits_, {control_, target_}] := CPhase[
-  numQubits, control, target
-];
-CPhase[control_, target_] := CPhase[
-  2, control, target
+defineTwoQubitGateFunctions[CPhase,
+  Plus[
+    KP[{{1, 0}, {0, 0}}, IdentityMatrix @ 2],
+    KP[{{0, 0}, {0, 1}}, PauliZ[]]
+  ]
 ];
 
-
-(* `CNOT` is the controlled-not gate *)
-CNot[] := Plus[
-  KP[{{1, 0}, {0, 0}}, IdentityMatrix @ 2],
-  KP[{{0, 0}, {0, 1}}, PauliX[]]
-];
-CNot[numQubits_Integer, control_Integer, target_Integer] := QTwoQubitGate[
-  numQubits, control, target, CNot[]
-];
-CNot[numQubits_, {control_, target_}] := CNot[
-  numQubits, control, target
-];
-CNot[control_, target_] := CNot[
-  2, control, target
+defineTwoQubitGateFunctions[CNot,
+  Plus[
+    KP[{{1, 0}, {0, 0}}, IdentityMatrix @ 2],
+    KP[{{0, 0}, {0, 1}}, PauliX[]]
+  ]
 ];
 
-Swap[] := {{1, 0, 0, 0},
-           {0, 0, 1, 0},
-           {0, 1, 0, 0},
-           {0, 0, 0, 1}};
-
+defineTwoQubitGateFunctions[Swap,
+  {{1, 0, 0, 0},
+   {0, 0, 1, 0},
+   {0, 1, 0, 0},
+   {0, 0, 0, 1}}
+];
 
 (* -------- THREE QUBIT GATES -------- *)
 
-
-Toffoli[] := SparseArray[
-  {
-    {i_, i_} /; i <= 6 -> 1,
-    {7, 8} -> 1, {8, 7} -> 1
-  },
-  {8, 8}
+defineThreeQubitGateFunctions[Toffoli,
+  SparseArray[
+    {
+      {i_, i_} /; i <= 6 -> 1,
+      {7, 8} -> 1, {8, 7} -> 1
+    },
+    {8, 8}
+  ]
 ];
 
-
-Fredkin[] := SparseArray[
-  {
-    {i_, i_} /; i < 6 -> 1,
-    {6, 7} -> 1, {7, 6} -> 1,
-    {8, 8} -> 1
-  },
-  {8, 8}
+defineThreeQubitGateFunctions[Fredkin,
+  SparseArray[
+    {
+      {i_, i_} /; i < 6 -> 1,
+      {6, 7} -> 1, {7, 6} -> 1,
+      {8, 8} -> 1
+    },
+    {8, 8}
+  ]
 ];
 
 
