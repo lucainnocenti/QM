@@ -72,7 +72,7 @@ QPartialTranspose::usage = "\
 QPartialTranspose[dm, n] computes the partial transpose of the density matrix dm with the respect to the n-th space.
 ";
 
-QStateBasePermutation;
+QBasePermutation;
 
 QEvolve::usage = "\
 QEvolve[qstate, evolutionMatrix] returns the state *qstate* evolved according to the specified *evolutionMatrix*.";
@@ -500,42 +500,43 @@ QPartialTranspose[iQDensityMatrix[matrix_List, bases_List], dim_Integer] := Whic
 ];
 
 
-QStateBasePermutation::badargs = "`1` is not a valid set of arguments.";
-QStateBasePermutation[
+QBasePermutation::badargs = "`1` is not a valid set of arguments.";
+QBasePermutation[
   matrix_?MatrixQ,
   basisLengths : {__Integer},
   newIndices : {__Integer}
-] := (
+] := Module[{matrixAsTP, transposedTP},
     (* Convert matrix to TensorProduct structure *)
-    ArrayReshape[matrix, Join[#, #] & @ basisLengths] //
+    matrixAsTP = ArrayReshape[matrix, Join[#, #] & @ basisLengths];
     (* Properly transpose the indices *)
-    Transpose[#, Join[newIndices, newIndices + Length @ basisLengths]]& //
+    transposedTP = Transpose[matrixAsTP,
+      Join[newIndices, newIndices + Length @ basisLengths]
+    ];
     (* Convert back into matrix structure *)
-    Flatten[#,
+    Flatten[transposedTP,
       {#, # + Length @ basisLengths}& @ Range @ Length @ basisLengths
-    ]&
-);
-QStateBasePermutation[
+    ]
+];
+QBasePermutation[
   iQDensityMatrix[matrix_, basis_],
   newIndices : {__Integer}
 ] := iQDensityMatrix[
-  QStateBasePermutation[
+  QBasePermutation[
     matrix,
     Length /@ basis,
     newIndices
   ],
   basis
 ];
-QStateBasePermutation[args___] := Null /;
-  Message[QStateBasePermutation::badargs, {args}];
+QBasePermutation[args___] := Null /;
+  Message[QBasePermutation::badargs, {args}];
 
 
 QEvolve::dimMismatch = "The input matrix and the basis of the QState must have \
 the same dimension.";
-QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] /; Length @ matrix == Length @ amps := iQState[
-  matrix . amps,
-  basis
-];
+QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] /; (
+    Length @ matrix == Length @ amps
+  ) := iQState[Dot[matrix, amps], basis];
 QEvolve[iQDensityMatrix[matrix_, basis_], u_?MatrixQ] := iQDensityMatrix[
   u . matrix . ConjugateTranspose[u],
   basis
@@ -576,7 +577,7 @@ RandomUnitary[m_] := Orthogonalize[
 ];
 
 (* Protect all package symbols *)
-With[{syms = Names["QM`QM`*"]},
+With[{syms = Names["QM`*"]},
   SetAttributes[syms, {Protected, ReadProtected}]
 ];
 
