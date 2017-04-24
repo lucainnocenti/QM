@@ -21,7 +21,8 @@ Module[{json, download, target},
 ]
 ```
 If you later want to uninstall `QM`, just run `PacletUninstall["QM"]`.
-
+Note that the above code only installs the last release of the package, which may not contain the latest updates.
+Just clone this repo in the folder given by Mathematica with `FileNameJoin@{$UserBaseDirectory, "Applications"}` for the latest version of the code.
 
 ## Demo
 
