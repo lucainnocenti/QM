@@ -4,7 +4,7 @@ If[$VersionNumber < 10,
   Abort[]
 ];
 
-BeginPackage["QM`QGates`"];
+BeginPackage["QM`QGates`", {"QM`"}];
 
 (* Unprotect all package symbols *)
 Unprotect @@ Names["QM`QGates`*"];
@@ -43,6 +43,8 @@ QTwoQubitGate::usage = "\
 QTwoQubitGate[numQubits, control, target, matrix] returns the matrix representing the gate `matrix` between the control and the target qubit.";
 QThreeQubitGate::usage = "\
 QThreeQubitGate[numQubits, q1, q2, q3, matrix] returns the matrix representing the gate `matrix` between the three qubits q1, q2 and q3.";
+
+QControlledGate;
 
 Swap;
 Toffoli;
@@ -152,6 +154,39 @@ QThreeQubitGate[numQubits_Integer,
   ]
 ];
 
+
+QControlledGate[numQubits_Integer,
+                controlQubit_Integer,
+                targetQubits_List,
+                gateMatrix_] /; (
+  And[
+    1 <= controlQubit <= numQubits,
+    Sequence @@ Thread[1 <= targetQubits <= numQubits],
+    Sequence @@ Thread[targetQubits != controlQubit]
+  ]
+) := Module[{gate},
+  gate = Plus[
+    KP[ProjectionMatrix[1, 1, 1], IdentityMatrix[2 ^ Length @ targetQubits]],
+    KP[ProjectionMatrix[1, 2, 2], gateMatrix]
+  ];
+  gate = KP[gate, IdentityMatrix[2 ^ (numQubits - Length @ targetQubits - 1)]];
+
+  QBasePermutation[gate,
+    ConstantArray[2, numQubits],
+    {controlQubit, Sequence @@ targetQubits,
+      Sequence @@ Complement[
+        Range @ numQubits, Append[targetQubits, controlQubit]
+      ]
+    }
+  ]
+];
+
+QControlledGate[
+  numQubits_Integer,
+  controlQubit_Integer,
+  targetQubits_Integer,
+  gateMatrix_
+] := QControlledGate[numQubits, controlQubit, {targetQubits}, gateMatrix];
 
 (*
   For example,
