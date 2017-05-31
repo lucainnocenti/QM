@@ -580,7 +580,7 @@ QNormalize[iQState[amps_, basis_]] := iQState[
 ];
 
 (* Returns True if the density matrix represents a pure state *)
-PureStateQ[iQDensityMatrix[matrix_, basis_]] := Equal[
+PureStateQ[iQDensityMatrix[matrix_, _]] := Equal[
   Chop[N @ Tr @ Dot[matrix, matrix]],
   1
 ];
@@ -596,10 +596,24 @@ RandomUnitary[m_] := Orthogonalize[
 ];
 
 
-(* Compute the fidelity between two input quantum states *)
+(* If the inputs are both matrices, it is assumed they are density matrices*)
+QFidelity::dimsMismatch = "The two input density matrices must have the same\
+dimensions.";
+QFidelity[dm1_?MatrixQ, dm2_?MatrixQ] := (
+  Check[Dimensions @ dm1 == Dimensions @ dm2, QFidelity::dimsMismatch];
+  Chop @ Tr @ Dot[dm1, dm2]
+);
+QFidelity[dm1_iQDensityMatrix, dm2_iQDensityMatrix] := QFidelity[
+  First @ dm1, First @ dm2
+];
+
+(* Compute the fidelity between two input quantum states in vector form*)
 QFidelity[amps1_List, amps2_List] := Abs[Dot[
   Conjugate @ amps1, amps2
 ]]^2;
+QFidelity[ket1_iQState, ket2_iQState] := QFidelity[
+  First @ ket1, First @ ket2
+];
 
 QFidelity[state1_][state2_] := QFidelity[state1, state2];
 
