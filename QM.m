@@ -1,6 +1,6 @@
 (* Abort for old, unsupported versions of Mathematica *)
 If[$VersionNumber < 10,
-  Print["ReckDecomposition requires Mathematica 10.0 or later."];
+  Print["QM requires Mathematica 10.0 or later."];
   Abort[]
 ];
 
@@ -89,6 +89,9 @@ TensorProductFromMatrix::usage = "TensorProductFromMatrix[matrix, {n1, n2, ...}]
 
 RandomUnitary::usage = "RandomUnitary[m] returns an mxm Haar-random unitary matrix.";
 
+QFidelity::usage = "\
+QFidelity[state1, state2] gives the fidelity between the two input states.";
+
 (* Notable quantum states*)
 
 Begin["`Private`"];
@@ -116,7 +119,12 @@ qstateParseAmps[amps_] := Which[
 (* Checks that if `basis` is not None, then it must be a list *)
 qstateParseBasis[basis_] := Which[
   basis === None, None,
-  Head@basis =!= List, Message[QState::basisMustBeList]; Abort[],
+  Head @ basis =!= List, Message[QState::basisMustBeList]; Abort[],
+  (* If `basis` is a list of lists, we assume it to be specifying a tensor
+     product base *)
+  MatchQ[basis, {{__}..}],
+  Map[ToString, basis, {2}],
+  (* else, `basis` is assuemed to be a list of labels *)
   True, ToString /@ basis
 ];
 
@@ -152,16 +160,25 @@ QState[opts : OptionsPattern[]] := With[{
       Developer`ToPackedArray @ amps,
       {ToString /@ Range @ Length @ amps}
     ],
-    (* If a list of amplitudes is provided together with a basis, they must
-       have the same length for consistency *)
-    (Head @ amps === List) && (Length @ amps != Length @ basis),
-    Message[QState::mismatchAmps]; Abort[],
     (* If the length of the amplitudes and basis match we proceed in saving the state into the iQState wrapper *)
-    (Head @ amps === List) && (Length @ amps == Length @ basis),
-    iQState[
-      Developer`ToPackedArray @ amps,
-      If[TensorRank[basis] == 1, {basis}, basis]
-    ],
+    Head @ amps === List, (
+      If[
+        And[
+          MatchQ[basis, {{__}..}],
+          Times @@ Length /@ basis != Length @ amps
+        ],
+        Message[QState::mismatchAmps];
+        Abort[]
+      ];
+      If[Length @ amps != Length @ basis,
+        Message[QState::mismatchAmps];
+        Abort[]
+      ];
+      iQState[
+        Developer`ToPackedArray @ amps,
+        If[TensorRank[basis] == 1, {basis}, basis]
+      ]
+    ),
     (* The labels used to specify the amplitudes must be included in the ones specified for the basis *)
     ! SubsetQ[basis, Keys @ amps],
     Message[QState::mismatchAmps]; Abort[],
@@ -577,6 +594,14 @@ RandomUnitary[m_] := Orthogonalize[
     NormalDistribution[0, 1], {m, m, 2}
   ]
 ];
+
+
+(* Compute the fidelity between two input quantum states *)
+QFidelity[amps1_List, amps2_List] := Abs[Dot[
+  Conjugate @ amps1, amps2
+]]^2;
+
+QFidelity[state1_][state2_] := QFidelity[state1, state2];
 
 (* Protect all package symbols *)
 With[{syms = Names["QM`*"]},
