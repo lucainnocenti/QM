@@ -51,9 +51,8 @@ Toffoli;
 Fredkin;
 
 Begin["`Private`"];
+Needs["QM`utilities`"]
 
-KP[x_] := x;
-KP[x___] := KroneckerProduct @ x;
 
 ProjectionMatrix[numQubits_Integer, y_, x_] := Normal @ SparseArray[
   {{y, x} -> 1},
@@ -200,16 +199,35 @@ PauliProduct[indices__Integer] /; And @@ Thread[0 <= {indices} <= 3] :=
 
 
 (* defineOneQubitGateFunctions is a "macro" to easily create the downvalues
-   associated functions defining one qubit gates *)
+   associated to functions defining one qubit gates *)
 Attributes[defineOneQubitGateFunctions] = {HoldRest};
 defineOneQubitGateFunctions[name_Symbol, matrix_] := (
-  name[] = matrix;
+  name[] := matrix;
   name[numQubits_Integer, target_Integer] := QOneQubitGate[
     numQubits, target, name[]
   ];
   name[numQubits_Integer, {target_Integer}] := name[numQubits, target];
   name[numQubits_Integer] := name[numQubits, numQubits];
 );
+
+defineOneQubitGateFunctions[name_Symbol, matrix_, {pars__Symbol}] := Block[{flag},
+  defineParametricFunction[name[flag] := matrix, flag, {pars}];
+  defineParametricFunction[name[{flag}] := matrix, flag, {pars}];
+  defineParametricFunction[
+    SetDelayed[
+      name[numQubits_Integer, target_Integer, {flag}],
+      QOneQubitGate[numQubits, target, name[pars]]
+    ],
+    flag, {pars}
+  ];
+  defineParametricFunction[
+    SetDelayed[
+      name[numQubits_Integer, target_Integer, flag],
+      name[numQubits, target, {pars}]
+    ],
+    flag, {pars}
+  ];
+];
 
 Attributes[defineTwoQubitGateFunctions] = HoldRest;
 defineTwoQubitGateFunctions[name_Symbol, matrix_] := (
@@ -235,8 +253,8 @@ defineThreeQubitGateFunctions[name_Symbol, matrix_] := (
     Max @ {q1, q2, q3}, q1, q2, q3
   ];
   (* Error handling *)
-  name::badArgs = "Incorrect inputs.";
-  name[args___] /; Message[name::badArgs] := Null;
+  name::badArgs = "Invalid input pattern.";
+  name[___] /; Message[name::badArgs] := Null;
 );
 
 
@@ -244,6 +262,9 @@ defineOneQubitGateFunctions[Hadamard, HadamardMatrix @ 2];
 defineOneQubitGateFunctions[PauliX, PauliMatrix @ 1];
 defineOneQubitGateFunctions[PauliY, PauliMatrix @ 2];
 defineOneQubitGateFunctions[PauliZ, PauliMatrix @ 3];
+defineOneQubitGateFunctions[PauliX, MatrixExp[-I * theta / 2 * PauliX[]], {theta}];
+defineOneQubitGateFunctions[PauliY, MatrixExp[-I * theta / 2 * PauliY[]], {theta}];
+defineOneQubitGateFunctions[PauliZ, MatrixExp[-I * theta / 2 * PauliZ[]], {theta}];
 
 
 (* -------- TWO QUBIT GATES -------- *)
