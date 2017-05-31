@@ -155,7 +155,7 @@ draw1QubitGateBox[letter_String] := With[
     ]
   }
 ];
-draw1QubitGateBox[pos : {x_, y_}, letter_String, QCircuitGraphics[circuit_]] := Inset[
+draw1QubitGateBox[pos : {_, _}, letter_String, QCircuitGraphics[circuit_]] := Inset[
   Graphics @ draw1QubitGateBox[letter],
   pos,
   Automatic,
@@ -163,12 +163,12 @@ draw1QubitGateBox[pos : {x_, y_}, letter_String, QCircuitGraphics[circuit_]] := 
 ];
 
 
-tokenCNOTControl[{x_, y_}] := With[{r = 0.1},
+tokenCNOTControl[{x_, y_}] := (
   {
     PointSize @ 0.02,
     Point @ {x, y}
   }
-];
+);
 tokenCNOTTarget[{x_, y_}] := With[{r = 0.1},
   {
     Thickness @ 0.004,
@@ -193,7 +193,7 @@ drawCPHASEGate[{x_, {controlY_, targetY_}}, QCircuitGraphics[circuit_]] := {
 
 
 (* drawNiceDot simply draws a simple black dot. It's for debugging purposes. *)
-drawNiceDot[pos : {x_, y_}] := Inset[
+drawNiceDot[pos : {_, _}] := Inset[
   Graphics @ {
     PointSize @ .05, Point @ {0, 0}
   },
@@ -204,17 +204,17 @@ drawNiceDot[pos : {x_, y_}] := Inset[
 (* ---- Build the graphics primitives for all the gates in the circuit ---- *)
 drawGates[QCircuitGraphics[circuit_]] := Map[
   Which[
-  (* Nice black dot *)
+    (* Nice black dot *)
     #[[2]]["Name"] == "NiceDot",
     drawNiceDot[{First @ #, Last[#]["Args"]}],
-  (* 1 Qubit Gates *)
+    (* 1 Qubit Gates *)
     #[[2]]["Type"] == "1QubitGate",
     draw1QubitGateBox[
       {#[[1]], #[[2]]["Args"]},
       #[[2]]["Name"] /. namesToLabelsRules,
       QCircuitGraphics @ circuit
     ],
-  (* CNOT 2 qubit gate *)
+    (* CNOT 2 qubit gate *)
     And[
       #[[2]]["Type"] == "2QubitGate",
       #[[2]]["Name"] == "CNOT"
@@ -223,7 +223,7 @@ drawGates[QCircuitGraphics[circuit_]] := Map[
       {#[[1]], #[[2, "Args"]]},
       QCircuitGraphics @ circuit
     ],
-  (* CPHASE 2 qubit gate *)
+    (* CPHASE 2 qubit gate *)
     And[
       #[[2]]["Type"] == "2QubitGate",
       #[[2]]["Name"] == "CPHASE"
