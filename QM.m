@@ -27,8 +27,10 @@ iQState::usage = "\
 iQState[amplitudes, basis] is the internal representation of a quantum state in ket representation.
   *amplitudes*: is the (full) list of amplitudes, each one associated with the correspondend element in *basis*.
   *basis*: list of labels for the basis states. Each label can have any Head, but not be a List of objects, or elements with nested heads (that is, it must have an ArrayDepth equal to 2).
-    If the ArrayDepth of *basis* is greater than 2 (equal to 3), the iQState is assumed to represent a state in a tensor product basis, and the *amplitudes* should correspondingly have an ArrayDepth equal to the Length of *basis*.\
-";
+    If the ArrayDepth of *basis* is greater than 2 (equal to 3), the iQState is assumed to represent a state in a tensor product basis, and the *amplitudes* should correspondingly have an ArrayDepth equal to the Length of *basis*.";
+
+QStateChangeBasis::usage = "\
+QStateChangeBasis[qstate, newbasis] changes the basis of of qstate inplace.";
 
 QOpenMap;
 
@@ -143,7 +145,7 @@ Options[QState] = {"Amplitudes" -> None, "BasisLabels" -> None};
 QState[] := notableQStates[];
 QState[notableStateName_String] := notableQStates[notableStateName];
 
-QState[opts : OptionsPattern[]] := With[{
+QState[OptionsPattern[]] := With[{
   amps = qstateParseAmps[OptionValue @ "Amplitudes"],
   basis = qstateParseBasis[OptionValue @ "BasisLabels"]
 },
@@ -274,6 +276,11 @@ iQState /: MakeBoxes[iQState[amps_List, bases_List], StandardForm] := If[TrueQ@$
   }
 ];
 
+
+Attributes @ QStateChangeBasis = HoldFirst;
+QStateChangeBasis[iqstate_ /; Head @ iqstate === iQState, newBasis_] := Set[
+  iqstate[[2]], Map[ToString, newBasis, {-1}]
+];
 
 (* ------ HANDLING OF STATES ALGEBRA ------ *)
 
@@ -608,7 +615,7 @@ QFidelity[dm1_iQDensityMatrix, dm2_iQDensityMatrix] := QFidelity[
 ];
 
 (* Compute the fidelity between two input quantum states in vector form*)
-QFidelity[amps1_List, amps2_List] := Abs[Dot[
+QFidelity[amps1_?VectorQ, amps2_?VectorQ] := Abs[Dot[
   Conjugate @ amps1, amps2
 ]]^2;
 QFidelity[ket1_iQState, ket2_iQState] := QFidelity[
