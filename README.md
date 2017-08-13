@@ -7,8 +7,8 @@ Evaluate the following to automatically install `QM` on your system (code adapte
 ```Mathematica
 Module[{json, download, target},
   Check[
-    json = Import["https://api.github.com/repos/lucainnocenti/QM/releases", "JSON"];
-    download = First @ Lookup[First@Lookup[json, "assets"], "browser_download_url"];
+    json = Import["https://api.github.com/repos/lucainnocenti/QM/releases/latest", "JSON"];
+    download = Lookup[First@Lookup[json, "assets"], "browser_download_url"];
     target = FileNameJoin[{CreateDirectory[], "QM.paclet"}];
     If[$Notebooks,
       PrintTemporary @ Labeled[ProgressIndicator[Appearance -> "Necklace"], "Downloading...", Right],
