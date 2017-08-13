@@ -2,12 +2,12 @@
 
 Paclet[
 	Name -> "QM",
-	Version -> "0.1",
+	Version -> "0.2",
 	WolframVersion -> "11.0+",
 	Description -> "A framework for quantum mechanical calculations.",
 	Creator -> "Luca Innocenti",
 	Extensions -> {
-		{"Kernel", Root -> ".", Context -> "QM"}(*,
+		{"Kernel", Root -> ".", Context -> "QM`"}(*,
 		{"Documentation", Language \[Rule] "English", MainPage \[Rule] "Guides/QM"}*)
 	}
 ]
