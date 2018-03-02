@@ -277,10 +277,17 @@ iQState /: MakeBoxes[iQState[amps_List, bases_List], StandardForm] := If[TrueQ@$
 ];
 
 
-Attributes @ QStateChangeBasis = HoldFirst;
-QStateChangeBasis[iqstate_ /; Head @ iqstate === iQState, newBasis_] := Set[
-  iqstate[[2]], Map[ToString, newBasis, {-1}]
+(* QStateChangeBasis
+ *
+ * Change the basis labels of a state. Returns new state with modified labels.
+ *)
+
+QStateChangeBasis[iqstate_iQState, newBasis_] := Module[{newiqstate = iqstate},
+  newiqstate[[2]] = Map[ToString, newBasis, {-1}];
+  newiqstate
 ];
+
+QStateChangeBasis[newBasis_][iqstate_] := QStateChangeBasis[iqstate, newBasis];
 
 (* ------ HANDLING OF STATES ALGEBRA ------ *)
 
