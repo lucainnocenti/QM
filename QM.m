@@ -30,7 +30,7 @@ iQState[amplitudes, basis] is the internal representation of a quantum state in 
     If the ArrayDepth of *basis* is greater than 2 (equal to 3), the iQState is assumed to represent a state in a tensor product basis, and the *amplitudes* should correspondingly have an ArrayDepth equal to the Length of *basis*.";
 
 QStateChangeBasis::usage = "\
-QStateChangeBasis[qstate, newbasis] changes the basis of of qstate inplace.";
+QStateChangeBasis[qstate, newbasis] changes the basis of qstate.";
 
 QOpenMap;
 
@@ -282,8 +282,21 @@ iQState /: MakeBoxes[iQState[amps_List, bases_List], StandardForm] := If[TrueQ@$
  * Change the basis labels of a state. Returns new state with modified labels.
  *)
 
-QStateChangeBasis[iqstate_iQState, newBasis_] := Module[{newiqstate = iqstate},
-  newiqstate[[2]] = Map[ToString, newBasis, {-1}];
+QStateChangeBasis[iqstate_iQState, newBasis_] := Module[
+  {newiqstate = iqstate, inewBasis = newBasis},
+  (* Ensure that all elements of the new basis are strings *)
+  inewBasis = Map[ToString, inewBasis, {-1}];
+  (* Abort if not a proper basis *)
+  If[
+    MatchQ[inewBasis, {__String}],
+    inewBasis = {inewBasis},
+    (* Return failed if the basis is not in an appropriate format *)
+    Not @ MatchQ[inewBasis, {{__String}..}],
+    Message[QStateChangeBasis::badBasis];
+    Return[$Failed];
+  ];
+  (* Finally actually apply the basis labels change *)
+  newiqstate[[2]] = Map[ToString, inewBasis, {-1}];
   newiqstate
 ];
 
@@ -345,7 +358,7 @@ QDot[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
 QTensorProduct[something_] := something;
 QTensorProduct[iQState[amps1_, basis1_], iQState[amps2_, basis2_]] := iQState[
   Flatten @ KroneckerProduct[amps1, amps2],
-(* this Join should always work because if non tensor-product bases should have the form {{whatever}} (with two braces) *)
+  (* this Join should always work because if non tensor-product bases should have the form {{whatever}} (with two braces) *)
   Join[basis1, basis2]
 ];
 
