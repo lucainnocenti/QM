@@ -11,7 +11,9 @@ Unprotect @@ Names["QM`QGates`*"];
 ClearAll @@ Names["QM`QGates`*"];
 
 (* Define all exposed symbols *)
-ProjectionMatrix;
+ProjectionMatrix::usage ="\
+ProjectionMatrix[numQubits, p, q] returns a matrix with a single 1 element at the position (p, q).
+ProjectionMatrix[numQubits, p] returns the projection matrix over the p-th basis state.";
 CPhase;
 CNot::usage = "\
 CNot[numQubits, control, target] is the CNOT gate applied between `control` and `target`, operating over `numQubits` qubits.";
@@ -54,10 +56,12 @@ Begin["`Private`"];
 Needs["QM`utilities`"]
 
 
-ProjectionMatrix[numQubits_Integer, y_, x_] := Normal @ SparseArray[
+ProjectionMatrix[numQubits_Integer, y_Integer, x_Integer] := Normal @ SparseArray[
   {{y, x} -> 1},
   {2 ^ numQubits, 2 ^ numQubits}
 ];
+
+ProjectionMatrix[numQubits_Integer, x_Integer] := ProjectionMatrix[numQubits, x, x];
 
 p11 = ProjectionMatrix[1, 1, 1];
 p22 = ProjectionMatrix[1, 2, 2];
