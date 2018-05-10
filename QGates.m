@@ -58,7 +58,7 @@ Needs["QM`utilities`"]
 
 ProjectionMatrix[dim_Integer, y_Integer, x_Integer] := Normal @ SparseArray[
   {{y, x} -> 1},
-  {2 ^ dim, 2 ^ dim}
+  {dim, dim}
 ];
 
 ProjectionMatrix[dim_Integer, x_Integer] := ProjectionMatrix[dim, x, x];
