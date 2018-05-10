@@ -12,8 +12,8 @@ ClearAll @@ Names["QM`QGates`*"];
 
 (* Define all exposed symbols *)
 ProjectionMatrix::usage ="\
-ProjectionMatrix[numQubits, p, q] returns a matrix with a single 1 element at the position (p, q).
-ProjectionMatrix[numQubits, p] returns the projection matrix over the p-th basis state.";
+ProjectionMatrix[dim, p, q] returns a matrix with a single 1 element at the position (p, q).
+ProjectionMatrix[dim, p] returns the projection matrix over the p-th basis state.";
 CPhase;
 CNot::usage = "\
 CNot[numQubits, control, target] is the CNOT gate applied between `control` and `target`, operating over `numQubits` qubits.";
@@ -56,15 +56,15 @@ Begin["`Private`"];
 Needs["QM`utilities`"]
 
 
-ProjectionMatrix[numQubits_Integer, y_Integer, x_Integer] := Normal @ SparseArray[
+ProjectionMatrix[dim_Integer, y_Integer, x_Integer] := Normal @ SparseArray[
   {{y, x} -> 1},
-  {2 ^ numQubits, 2 ^ numQubits}
+  {2 ^ dim, 2 ^ dim}
 ];
 
-ProjectionMatrix[numQubits_Integer, x_Integer] := ProjectionMatrix[numQubits, x, x];
+ProjectionMatrix[dim_Integer, x_Integer] := ProjectionMatrix[dim, x, x];
 
-p11 = ProjectionMatrix[1, 1, 1];
-p22 = ProjectionMatrix[1, 2, 2];
+p11 = ProjectionMatrix[2, 1, 1];
+p22 = ProjectionMatrix[2, 2, 2];
 
 
 QOneQubitGate[numQubits_Integer, target_Integer, matrix_] := Block[
@@ -169,8 +169,8 @@ QControlledGate[numQubits_Integer,
   ]
 ) := Module[{gate},
   gate = Plus[
-    KP[ProjectionMatrix[1, 1, 1], IdentityMatrix[2 ^ Length @ targetQubits]],
-    KP[ProjectionMatrix[1, 2, 2], gateMatrix]
+    KP[ProjectionMatrix[2, 1, 1], IdentityMatrix[2 ^ Length @ targetQubits]],
+    KP[ProjectionMatrix[2, 2, 2], gateMatrix]
   ];
   gate = KP[gate, IdentityMatrix[2 ^ (numQubits - Length @ targetQubits - 1)]];
 
