@@ -150,7 +150,8 @@ QState[OptionsPattern[]] := With[{
   basis = qstateParseBasis[OptionValue @ "BasisLabels"]
 },
   Which[
-    (* If no basis state is provided, the labels given as "Amplitudes" are used instead *)
+    (* If no basis state is provided and the amplitudes are given as an association,
+       then the keys of the association are used as labels *)
     (basis === None) && (Head @ amps === Association),
     iQState[
       Developer`ToPackedArray @ Values @ amps,
@@ -165,17 +166,21 @@ QState[OptionsPattern[]] := With[{
     (* If the length of the amplitudes and basis match we proceed in saving the state into the iQState wrapper *)
     Head @ amps === List, (
       If[
-        And[
-          MatchQ[basis, {{__}..}],
-          Times @@ Length /@ basis != Length @ amps
+        (* If basis represents a tensor product space.. *)
+        MatchQ[basis, {{__}..}],
+        (* Check consistency of dimensions *)
+        If[Times @@ Length /@ basis != Length @ amps,
+          Message[QState::mismatchAmps];
+          Abort[]
         ],
-        Message[QState::mismatchAmps];
-        Abort[]
+        (* Otherwise, if there is no tensor product structure, check consistency
+           dimensions in the simpler case *)
+        If[Length @ amps != Length @ basis,
+          Message[QState::mismatchAmps];
+          Abort[]
+        ]
       ];
-      If[Length @ amps != Length @ basis,
-        Message[QState::mismatchAmps];
-        Abort[]
-      ];
+      (* If the above checks were passed, we can move on to create the state *)
       iQState[
         Developer`ToPackedArray @ amps,
         If[TensorRank[basis] == 1, {basis}, basis]
