@@ -48,7 +48,7 @@ QThreeQubitGate[numQubits, q1, q2, q3, matrix] returns the matrix representing t
 
 QControlledGate;
 
-Swap;
+QSwap;
 Toffoli;
 Fredkin;
 
@@ -287,7 +287,7 @@ defineTwoQubitGateFunctions[CNot,
   ]
 ];
 
-defineTwoQubitGateFunctions[Swap,
+defineTwoQubitGateFunctions[QSwap,
   {{1, 0, 0, 0},
    {0, 0, 1, 0},
    {0, 1, 0, 0},
