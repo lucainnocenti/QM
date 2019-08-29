@@ -271,7 +271,7 @@ qStatePrettyPrint[iQState[amps_List, bases : {{__String} ..}]] := With[{
 
 $iQStateAutoNormalize = True;
 iQState::cannotSumDifferentBases = "Quantum states over different bases cannot be summed together.";
-iQState /: Plus[state1_iQState, state2_iQState] := QPlus[state1, state2];
+iQState /: Plus[states__iQState] := QPlus[states];
 iQState /: Times[x_, iQState[amps_, bases_]] := iQState[x amps, bases];
 
 iQState /: MakeBoxes[iQState[amps_List, bases_List], StandardForm] := If[TrueQ@$iQStatePrettyPrint,
@@ -319,7 +319,17 @@ QEnv[expr___] := expr;
 
 
 SetAttributes[QPlus, Orderless];
-QPlus[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
+QPlus[states__iQState] := With[{statesList = {states}},
+  (* We only check bases for the first two matrices. This should probably be fixed. *)
+  If[statesList[[1, 2]] =!= statesList[[2, 2]], Message[iQState::cannotSumDifferentBases]];
+  iQState[
+    If[TrueQ @ $iQStateAutoNormalize, # / Norm @ #, #]&[
+      Total @ statesList[[All, 1]]
+    ],
+    statesList[[1, 2]]
+  ]
+];
+(* QPlus[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
   bases1 =!= bases2,
   Message[iQState::cannotSumDifferentBases]; Return[$Failed],
   iQState[
@@ -328,7 +338,7 @@ QPlus[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
     ],
     bases1
   ]
-];
+]; *)
 QPlus[iQState[amps1_, bases1_], -iQState[amps2_, bases2_]] := QPlus[
   iQState[amps1, bases1], iQState[-amps2, bases2]
 ];
@@ -339,7 +349,18 @@ QPlus[x_ iQState[amps1_, bases1_], y_ iQState[amps2_, bases2_]] := QPlus[
   iQState[x amps1, bases1], iQState[y amps2, bases2]
 ];
 
-QPlus[iQDensityMatrix[m_, b_], iQDensityMatrix[mm_, bb_]] := If[
+QPlus[dms__iQDensityMatrix] := With[{dmsList = {dms}},
+  (* We only check bases for the first two matrices. This should probably be fixed. *)
+  If[dmsList[[1, 2]] =!= dmsList[[2, 2]], Message[iQDensityMatrix::cannotSumDifferentBases]];
+  (* Let's sum the individual matrices, and only at the end renormalise *)
+  iQDensityMatrix[
+    If[TrueQ @ $iQDensityMatrixAutoNormalize, # / Tr @ #, #]&[
+      Total @ dmsList[[All, 1]]
+    ],
+    dmsList[[1, 2]]
+  ]
+];
+(* QPlus[iQDensityMatrix[m_, b_], iQDensityMatrix[mm_, bb_]] := If[
   b =!= bb, Message[iQDensityMatrix::cannotSumDifferentBases]; Return[$Failed],
   iQDensityMatrix[
     If[TrueQ @ $iQDensityMatrixAutoNormalize, # / Tr @ #, #]&[
@@ -347,7 +368,7 @@ QPlus[iQDensityMatrix[m_, b_], iQDensityMatrix[mm_, bb_]] := If[
     ],
     b
   ]
-];
+]; *)
 QPlus[iQDensityMatrix[m_, b_], mm_?MatrixQ] := iQDensityMatrix[m + mm, b];
 QPlus[x___] := Plus[x];
 
@@ -470,7 +491,8 @@ iQDensityMatrix /: Dot[iQDensityMatrix[dm1_, basis1_], iQDensityMatrix[dm2_, bas
   ]
 ];
 $iQDensityMatrixAutoNormalize = True;
-iQDensityMatrix /: Plus[dm1_iQDensityMatrix, dm2_iQDensityMatrix] := QPlus[dm1, dm2];
+iQDensityMatrix /: Plus[dms__iQDensityMatrix] := QPlus[dms];
+(* iQDensityMatrix /: Plus[dm1_iQDensityMatrix, dm2_iQDensityMatrix] := QPlus[dm1, dm2]; *)
 iQDensityMatrix /: Plus[iQDensityMatrix[matrix_, bases_], m_?MatrixQ] := iQDensityMatrix[m + matrix, bases];
 iQDensityMatrix /: Times[x_, iQDensityMatrix[matrix_, bases_]] := iQDensityMatrix[x matrix, bases];
 iQDensityMatrix /: Eigenvalues[iQDensityMatrix[m_, _]] := Eigenvalues[m];
