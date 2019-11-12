@@ -205,7 +205,7 @@ QState[amps_] := QState["Amplitudes" -> amps];
 QState[amps_, basis_] := QState["Amplitudes" -> amps, "BasisLabels" -> basis];
 
 
-notableQStates[] := "To implement useful message";
+notableQStates[] := "To implement a useful message.";
 notableQStates[str_String] /; (
   StringMatchQ[str, ("0" | "1")..]
 ) := QTensorProduct @@ Map[
@@ -217,6 +217,11 @@ notableQStates["BellStates"] := {
   QState@"00" - QState@"11",
   QState@"01" + QState@"10",
   QState@"01" - QState@"10"
+};
+notableQStates[somethingelse_] := Print @ StringJoin @ {
+  "I don't know what \"",
+  ToString @ somethingelse,
+  "\" means!"
 };
 
 
