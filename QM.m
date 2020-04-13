@@ -404,6 +404,8 @@ QTensorProduct[states__iQState] := With[{
 ];
 
 
+QStateToDensityMatrix[ket_List] := KroneckerProduct[ket, Conjugate @ ket];
+
 QStateToDensityMatrix[iQState[amps_, basis_]] := iQDensityMatrix[
   KroneckerProduct[amps, Conjugate @ amps],
   basis
