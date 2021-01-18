@@ -76,6 +76,10 @@ QPartialTranspose::usage = "\
 QPartialTranspose[dm, n] computes the partial transpose of the density matrix dm with the respect to the n-th space.
 ";
 
+QPurity::usage = "\
+QPurity[dm] returns the purity of the input density matrix.
+";
+
 QBasePermutation;
 
 QEvolve::usage = "\
@@ -90,6 +94,9 @@ TensorProductToMatrix::usage = "TensorProductToMatrix[asd]";
 TensorProductFromMatrix::usage = "TensorProductFromMatrix[matrix, {n1, n2, ...}] does what it should do.";
 
 RandomUnitary::usage = "RandomUnitary[m] returns an mxm Haar-random unitary matrix.";
+RandomState;
+RandomDensityMatrix;
+RandomPureState;
 
 QFidelity::usage = "\
 QFidelity[state1, state2] gives the fidelity between the two input states.";
@@ -640,6 +647,11 @@ QNormalize[iQState[amps_, basis_]] := iQState[
   basis
 ];
 
+
+QPurity[dm_?MatrixQ] := Chop @ Tr @ MatrixPower[dm, 2];
+QPurity[iQDensityMatrix[matrix_, basis_]] := QPurity @ matrix;
+
+
 (* Returns True if the density matrix represents a pure state *)
 PureStateQ[iQDensityMatrix[matrix_, _]] := Equal[
   Chop[N @ Tr @ Dot[matrix, matrix]],
@@ -655,6 +667,17 @@ RandomUnitary[m_] := Orthogonalize[
     NormalDistribution[0, 1], {m, m, 2}
   ]
 ];
+
+(* Generate a random density matrix (CHECK THAT THE PROCEDURE IS CORRECT. A good
+   source is https://arxiv.org/pdf/1502.03644.pdf) *)
+RandomState[dim_] := Chop[
+  RandomComplex[{-1, 1} (1 + I), {dim, dim}] // 
+    Dot[#, ConjugateTranspose@#] & // # / Tr @ # &
+];
+RandomDensityMatrix[dim_] := RandomState @ dim;
+
+(* THERE IS PROBABLY A MORE DIRECT WAY NOT INVOLVING GENERATING RANDOM UNITARIES *)
+RandomPureState[dim_] := First @ RandomUnitary @ dim;
 
 
 (* If the inputs are both matrices, it is assumed they are density matrices*)
