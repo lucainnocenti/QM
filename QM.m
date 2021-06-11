@@ -23,6 +23,10 @@ amplitudes, with basis labels automatically generated.
 QDensityMatrix[amplitudes, bases] generates a density matrix with the specified \
 amplitudes and bases.";
 
+QEvolutionQ;
+QStateQ::usage = "\
+QStateQ[input] checks whether the input represents a quantum state.";
+
 iQState::usage = "\
 iQState[amplitudes, basis] is the internal representation of a quantum state in ket representation.
   *amplitudes*: is the (full) list of amplitudes, each one associated with the correspondend element in *basis*.
@@ -100,6 +104,11 @@ RandomPureState;
 
 QFidelity::usage = "\
 QFidelity[state1, state2] gives the fidelity between the two input states.";
+
+QObservable;
+QMeasurement;
+QExpectationValue::usage = "\
+QExpectationValue[state, observable] returns the expectation value corresponding to the given state and observable.";
 
 (* Notable quantum states*)
 
@@ -212,6 +221,10 @@ QState[amps_] := QState["Amplitudes" -> amps];
 QState[amps_, basis_] := QState["Amplitudes" -> amps, "BasisLabels" -> basis];
 
 
+(* check whether the input is a valid quantum state, i.e. an iQState or iQDensityMatrix object *)
+QStateQ[input_] := MatchQ[input, (_iQState | _iQDensityMatrix)];
+
+
 notableQStates[] := "To implement a useful message.";
 notableQStates[str_String] /; (
   StringMatchQ[str, ("0" | "1")..]
@@ -319,6 +332,12 @@ QStateChangeBasis[iqstate_iQState, newBasis_] := Module[
 
 QStateChangeBasis[newBasis_][iqstate_] := QStateChangeBasis[iqstate, newBasis];
 
+(* find the total dimension of the space in which the state lives (useful for multipartite states) *)
+qStateFullDimension[iQState[_, bases_]] := Times @@ (Length /@ bases);
+qStateFullDimension[iQDensityMatrix[_, bases_]] := Times @@ (Length /@ bases);
+qEvolutionDimension[matrix_?MatrixQ] := Length @ matrix;
+
+
 (* ------ HANDLING OF STATES ALGEBRA ------ *)
 
 SetAttributes[QEnv, HoldAll];
@@ -391,6 +410,29 @@ QDot[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
   Message[QDot::differentBases]
 ];
 
+QDot[matrix1_?MatrixQ, matrix2_?MatrixQ] := Dot[matrix1, matrix2];
+
+QDot[dm_iQDensityMatrix, matrix_?MatrixQ] := iQDensityMatrix[
+  Dot[dm[[1]], matrix],
+  dm[[2]]
+];
+
+QDot[matrix_?MatrixQ, dm_iQDensityMatrix] := iQDensityMatrix[
+  Dot[matrix, dm[[1]]],
+  dm[[2]]
+];
+
+QDot[iQDensityMatrix[matrix1_, basis1_], iQDensityMatrix[matrix2_, basis2_]] := If[
+    basis1 === basis2,
+    iQDensityMatrix[Dot[matrix1, matrix2], basis1],
+    Message[QDot::differentBases]
+];
+
+QDot[matrices__] := QDot[
+  {matrices}[[1]],
+  QDot[Sequence @@ ({matrices}[[2;;]])]
+];
+
 
 (* If a single argument is provided, nothing happens *)
 QTensorProduct[something_] := something;
@@ -400,7 +442,7 @@ QTensorProduct[iQState[amps1_, basis1_], iQState[amps2_, basis2_]] := iQState[
   Join[basis1, basis2]
 ];
 
-QTensorProduct[states__iQState] := With[{
+(* QTensorProduct[states__iQState] := With[{
   amps = {states}[[All, 1]],
   bases = Join @@ {states}[[All, 2]]
 },
@@ -408,7 +450,21 @@ QTensorProduct[states__iQState] := With[{
     Flatten[KroneckerProduct @@ amps],
     bases
   ]
+]; *)
+
+QTensorProduct[dm1_iQDensityMatrix, dm2_iQDensityMatrix] := iQDensityMatrix[
+  KroneckerProduct[First @ dm1, First @ dm2],
+  Join[dm1[[2]], dm2[[2]]]
 ];
+
+QTensorProduct[dm_iQDensityMatrix, ket_iQState] := QTensorProduct[
+  dm, QStateToDensityMatrix @ ket
+];
+QTensorProduct[ket_iQState, dm_iQDensityMatrix] := QTensorProduct[
+  QStateToDensityMatrix @ ket, dm
+];
+
+QTensorProduct[args__] := QTensorProduct[{args}[[1]], QTensorProduct[Sequence @@ ({args}[[2;;]])]] /; Length @ {args} > 2;
 
 
 QStateToDensityMatrix[ket_List] := KroneckerProduct[ket, Conjugate @ ket];
@@ -619,8 +675,15 @@ QBasePermutation[args___] := Null /;
   Message[QBasePermutation::badargs, {args}];
 
 
-QEvolve::dimMismatch = "The input matrix and the basis of the QState must have \
-the same dimension.";
+QEvolutionQ::invalid = "The input does not represent a recognised form of quantum evolution."
+QEvolutionQ[matrix_?MatrixQ] := True;
+QEvolutionQ[_] := False;
+
+QEvolve::dimMismatch = "Dimensions of the state and evolution matrix/object are inconsistent: state has `1` while unitary has `2`.";
+QEvolve[state_?QStateQ, evolution_?QEvolutionQ] := (
+  Message[QEvolve::dimMismatch, qStateFullDimension @ state, qEvolutionDimension @ evolution];
+  HoldForm @ QEvolve[state, evolution]
+) /; Unequal[qStateFullDimension @ state, qEvolutionDimension @ evolution];
 QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] /; (
     Length @ matrix == Length @ amps
   ) := iQState[Dot[matrix, amps], basis];
@@ -628,6 +691,7 @@ QEvolve[iQDensityMatrix[matrix_, basis_], u_?MatrixQ] := iQDensityMatrix[
   u . matrix . ConjugateTranspose[u],
   basis
 ];
+QEvolve[state_?QStateQ, dm_iQDensityMatrix] := QEvolve[state, First @ dm]; (* can be used e.g. for projections *)
 QEvolve[state_iQState, openMapEvolution : QOpenMap[_List]] := QEvolve[
   QStateToDensityMatrix @ state,
   openMapEvolution
@@ -700,6 +764,35 @@ QFidelity[ket1_iQState, ket2_iQState] := QFidelity[
 ];
 
 QFidelity[state1_][state2_] := QFidelity[state1, state2];
+
+
+(* Compute expectation values of observables.
+    - we use QObservable[hermitianMatrix, basis] to represent observables.
+*)
+QExpectationValue::dimsMismatch = "The bases have different dimensions. I got `1` and `2`.";
+QExpectationValue[ket_iQState, obs_] := QExpectationValue[QStateToDensityMatrix @ ket, obs];
+QExpectationValue[dm_iQDensityMatrix, obs_QObservable] := ( (* check dimensions compatibility and return message if inconsistent *)
+  Message[QExpectationValue::dimsMismatch, dm[[2]], obs[[2]]];
+  HoldForm @ QExpectationValue[dm, obs]; (* return unevaluated form *)
+) /; Unequal[qStateFullDimension @ dm, qStateFullDimension @ obs];
+
+QExpectationValue[dm_iQDensityMatrix, obs_QObservable] := Tr[
+  QDot[dm, obs[[1]]]
+];
+(* if a list of observables is given, we assume they want measurements corresponding to each component *)
+QExpectationValue[dm_iQDensityMatrix, {obss__QObservable}] := Map[
+  QExpectationValue[dm, #]&, {obss}
+];
+(* if the second argument (the observable) is given as a simple matrix, we assume it represents an observable with suitable bases *)
+QExpectationValue[state_?QStateQ, obs_?MatrixQ] := QExpectationValue[state, QObservable[obs, state[[2]]]];
+QExpectationValue[state_?QStateQ, state2_iQState] := QExpectationValue[state, QStateToDensityMatrix @ state2];
+QExpectationValue[state_?QStateQ, state2_iQDensityMatrix] := QExpectationValue[state, QObservable @@ state2];
+
+QMeasurement[ket_iQState, "Probabilities" | "Diagonal"] := Abs[#]^2& @ First @ ket;
+QMeasurement[dm_iQDensityMatrix, "Probabilities" | "Diagonal"] := Diagonal @ First @ dm;
+(* unless special rules are found, we assume they want expectation values *)
+QMeasurement[state_?QStateQ, obs_] := QExpectationValue[state, obs];
+
 
 (* Protect all package symbols *)
 With[{syms = Names["QM`*"]},
