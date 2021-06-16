@@ -102,8 +102,8 @@ RandomState;
 RandomDensityMatrix;
 RandomPureState;
 
-QFidelity::usage = "\
-QFidelity[state1, state2] gives the fidelity between the two input states.";
+QFidelity::usage = "QFidelity[state1, state2] gives the fidelity between the two input states.";
+QTraceDistance::usage = "QTraceDistance[state1, state2] gives the trace norm between the two input states/matrices.";
 
 QObservable;
 QMeasurement;
@@ -473,6 +473,7 @@ QStateToDensityMatrix[iQState[amps_, basis_]] := iQDensityMatrix[
   KroneckerProduct[amps, Conjugate @ amps],
   basis
 ];
+QStateToDensityMatrix[dm_iQDensityMatrix] := dm;
 
 QDensityMatrixToKet[dmMatrix_?MatrixQ] := Conjugate @ dmMatrix[[1]] / Sqrt @ Abs @ dmMatrix[[1, 1]];
 QDensityMatrixToKet[dm_iQDensityMatrix] := iQState[
@@ -684,12 +685,18 @@ QEvolve[state_?QStateQ, evolution_?QEvolutionQ] := (
   Message[QEvolve::dimMismatch, qStateFullDimension @ state, qEvolutionDimension @ evolution];
   HoldForm @ QEvolve[state, evolution]
 ) /; Unequal[qStateFullDimension @ state, qEvolutionDimension @ evolution];
+QEvolve[amps_?VectorQ, matrix_?MatrixQ] := Dot[matrix, amps];
+QEvolve[dm_?MatrixQ, evolutionMatrix_?MatrixQ] := Dot[#, dm, ConjugateTranspose @ #] & @ evolutionMatrix;
 QEvolve[iQState[amps_, basis_], matrix_?MatrixQ] /; (
     Length @ matrix == Length @ amps
   ) := iQState[Dot[matrix, amps], basis];
 QEvolve[iQDensityMatrix[matrix_, basis_], u_?MatrixQ] := iQDensityMatrix[
   u . matrix . ConjugateTranspose[u],
   basis
+];
+QEvolve[operator_QObservable, matrix_] := QObservable[
+  QEvolve[First @ operator, matrix],
+  operator[[2]]
 ];
 QEvolve[state_?QStateQ, dm_iQDensityMatrix] := QEvolve[state, First @ dm]; (* can be used e.g. for projections *)
 QEvolve[state_iQState, openMapEvolution : QOpenMap[_List]] := QEvolve[
@@ -765,6 +772,10 @@ QFidelity[ket1_iQState, ket2_iQState] := QFidelity[
 
 QFidelity[state1_][state2_] := QFidelity[state1, state2];
 
+QTraceDistance[mat1_?MatrixQ, mat2_?MatrixQ] := Total @ SingularValueList[mat1 - mat2];
+
+QTraceDistance[dm1_?QStateQ, dm2_?QStateQ] := QTraceDistance[First @ dm1, First @ dm2];
+QTraceDistance @ OrderlessPatternSequence[dm_?QStateQ, matrix_?MatrixQ] := QTraceDistance[First @ dm, matrix];
 
 (* Compute expectation values of observables.
     - we use QObservable[hermitianMatrix, basis] to represent observables.
