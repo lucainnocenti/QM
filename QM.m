@@ -404,11 +404,15 @@ QPlus[iQDensityMatrix[m_, b_], mm_?MatrixQ] := iQDensityMatrix[m + mm, b];
 QPlus[x___] := Plus[x];
 
 QDot::differentBases = "The bases must be equal.";
-QDot[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := If[
-  bases1 === bases2,
-  Conjugate[amps1] . amps2,
-  Message[QDot::differentBases]
-];
+QDot::betweenKets = "Warning: QDot acts as the fidelity between ket states. It might be better to use QFidelity for this."
+QDot[iQState[amps1_, bases1_], iQState[amps2_, bases2_]] := (
+  Message[QDot::betweenKets];
+  If[
+    bases1 === bases2,
+    Conjugate[amps1] . amps2,
+    Message[QDot::differentBases]
+  ]
+);
 
 QDot[matrix1_?MatrixQ, matrix2_?MatrixQ] := Dot[matrix1, matrix2];
 
@@ -428,10 +432,31 @@ QDot[iQDensityMatrix[matrix1_, basis1_], iQDensityMatrix[matrix2_, basis2_]] := 
     Message[QDot::differentBases]
 ];
 
-QDot[matrices__] := QDot[
-  {matrices}[[1]],
+QDot::dottingObservablesWithUnequalBases = "Warning: computing QDot on observables with different bases.";
+QDot[obs1_QObservable, obs2_QObservable] := (
+  If[obs1[[2]] =!= obs2[[2]], Message[QDot::dottingObservablesWithUnequalBases]];
+  QObservable[
+    Dot[obs1[[1]], obs2[[1]]],
+    obs1[[2]]
+  ]
+);
+QDot[obs_QObservable, matrix_?MatrixQ] := QDot[obs, QObservable[matrix, obs[[2]]]];
+QDot[matrix_?MatrixQ, obs_QObservable] := QDot[QObservable[matrix, obs[[2]]], obs];
+
+QDot::unrecognizedInputs = "Trying to apply QDot on unrecognized objects. Be careful, jeez!"
+QDot[stuff__] := (
+  Message[QDot::unrecognizedInputs];
+  Echo @ HoldForm[QDot[stuff]]
+) /; Not[And @@ (MatchQ[#, _?MatrixQ | _iQDensityMatrix | _iQState | _QObservable] & /@ {stuff})];
+QDot[matrices__ /; Length @ {matrices} > 1] := QDot[
+  Echo[{matrices}][[1]],
   QDot[Sequence @@ ({matrices}[[2;;]])]
 ];
+
+(* QDot[obss__QObservable] := QObservable[
+  QDot[Sequence @@ ({obss}[[All, 1]])],
+  {obss}[[1]]
+]; *)
 
 
 (* If a single argument is provided, nothing happens *)
@@ -455,6 +480,11 @@ QTensorProduct[iQState[amps1_, basis1_], iQState[amps2_, basis2_]] := iQState[
 QTensorProduct[dm1_iQDensityMatrix, dm2_iQDensityMatrix] := iQDensityMatrix[
   KroneckerProduct[First @ dm1, First @ dm2],
   Join[dm1[[2]], dm2[[2]]]
+];
+
+QTensorProduct[obs1_QObservable, obs2_QObservable] := QObservable[
+  KroneckerProduct[First @ obs1, First @ obs2],
+  Join[obs1[[2]], obs2[[2]]]
 ];
 
 QTensorProduct[dm_iQDensityMatrix, ket_iQState] := QTensorProduct[
@@ -569,22 +599,49 @@ iQDensityMatrix /: Times[x_, iQDensityMatrix[matrix_, bases_]] := iQDensityMatri
 iQDensityMatrix /: Eigenvalues[iQDensityMatrix[m_, _]] := Eigenvalues[m];
 iQDensityMatrix /: Eigenvectors[iQDensityMatrix[m_, _]] := Eigenvectors[m];
 
+QObservable::summingUnequalBases = "Warning: we are assuming observables defined on different spaces";
+QObservable /: Plus[obss__QObservable] := (
+  If[Length @ DeleteDuplicates @ {obss}[[All, 2]] > 1, Message[QObservable::summingUnequalBases]];
+  QObservable[
+    {obss}[[All, 1]] // Total,
+    {obss}[[1]][[2]]
+  ]
+);
+QObservable /: Times[x_, QObservable[matrix_, bases_]] := QObservable[x matrix, bases];
+QObservable /: MatrixForm[QObservable[obs_, bases_]] := MatrixForm[
+  obs,
+  TableHeadings -> {#, #}& @ If[Length @ bases == 1,
+    bases[[1]],
+    Flatten @ Outer[
+      StringJoin @@ Riffle[
+        ToString /@ {##},
+        ","
+      ]&,
+      Sequence @@ bases
+    ]
+  ]
+];
+
 
 QPartialTrace::wrongDims = "The tensor product structure is not compatible with\
  the specified index over which to do the partial trace.";
 QPartialTrace[k_Integer][state_] := QPartialTrace[state, k];
 QPartialTrace[iQDensityMatrix[matrix_, basis_], k_Integer] /;
   (Length @ basis == 1) := Tr[matrix];
-QPartialTrace[iQDensityMatrix[matrix_, basis_], k_Integer] :=
-  iQDensityMatrix[
-    QPartialTrace[matrix, Length /@ basis, k],
-    Drop[basis, {k}]
-  ];
+QPartialTrace[iQDensityMatrix[matrix_, basis_], k_Integer] := iQDensityMatrix[
+  QPartialTrace[matrix, Length /@ basis, k],
+  Drop[basis, {k}]
+];
 QPartialTrace[iQDensityMatrix[matrix_, bases_], indices_List] :=
   iQDensityMatrix[
     QPartialTrace[matrix, Length /@ bases, indices],
     bases[[indices]]
   ];
+(* we just leverage the stuff written for density matrices and rewrap for observables here *)
+QPartialTrace[obs_QObservable, indices_] := QObservable @@ QPartialTrace[
+  iQDensityMatrix @@ obs,
+  indices
+];
 (* If the first argument is a ket state, it is converted to a density matrix
    and QPartialTrace evaluated over the corresponding density matrix. *)
 QPartialTrace[ket_iQState, args__] := QPartialTrace[
@@ -776,6 +833,7 @@ QTraceDistance[mat1_?MatrixQ, mat2_?MatrixQ] := Total @ SingularValueList[mat1 -
 
 QTraceDistance[dm1_?QStateQ, dm2_?QStateQ] := QTraceDistance[First @ dm1, First @ dm2];
 QTraceDistance @ OrderlessPatternSequence[dm_?QStateQ, matrix_?MatrixQ] := QTraceDistance[First @ dm, matrix];
+QTraceDistance @ OrderlessPatternSequence[obs_QObservable, matrix_?MatrixQ] := QTraceDistance[First @ obs, matrix];
 
 (* Compute expectation values of observables.
     - we use QObservable[hermitianMatrix, basis] to represent observables.
