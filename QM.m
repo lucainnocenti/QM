@@ -1,3 +1,5 @@
+(* ::Package:: *)
+
 (* Abort for old, unsupported versions of Mathematica *)
 If[$VersionNumber < 10,
   Print["QM requires Mathematica 10.0 or later."];
@@ -109,6 +111,8 @@ QObservable;
 QMeasurement;
 QExpectationValue::usage = "\
 QExpectationValue[state, observable] returns the expectation value corresponding to the given state and observable.";
+
+ShannonEntropy::usage = "ShannonEntropy[probs] gives the Shannon entropy corresponding to the given input (discrete) probability distribution.";
 
 (* Notable quantum states*)
 
@@ -861,6 +865,9 @@ QMeasurement[ket_iQState, "Probabilities" | "Diagonal"] := Abs[#]^2& @ First @ k
 QMeasurement[dm_iQDensityMatrix, "Probabilities" | "Diagonal"] := Diagonal @ First @ dm;
 (* unless special rules are found, we assume they want expectation values *)
 QMeasurement[state_?QStateQ, obs_] := QExpectationValue[state, obs];
+
+
+ShannonEntropy[probs_, base_:2] := DeleteCases[probs, 0] // -Total[# * Log[2, #]] &;
 
 
 (* Protect all package symbols *)
