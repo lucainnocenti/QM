@@ -237,6 +237,8 @@ notableQStates[str_String] /; (
   QState["Amplitudes" -> <|# -> 1|>, "BasisLabels" -> {0, 1}] &,
   Characters @ str
 ];
+notableQStates["+"] := iQState[{1/Sqrt[2], 1/Sqrt[2]}, {{"0", "1"}}];
+notableQStates["+"] := iQState[{1/Sqrt[2], -1/Sqrt[2]}, {{"0", "1"}}];
 notableQStates["BellStates"] := {
   QState@"00" + QState@"11",
   QState@"00" - QState@"11",
