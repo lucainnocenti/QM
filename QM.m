@@ -113,6 +113,7 @@ QExpectationValue::usage = "\
 QExpectationValue[state, observable] returns the expectation value corresponding to the given state and observable.";
 
 ShannonEntropy::usage = "ShannonEntropy[probs] gives the Shannon entropy corresponding to the given input (discrete) probability distribution.";
+VonNeumannEntropy;
 
 (* Notable quantum states*)
 
@@ -867,7 +868,8 @@ QMeasurement[dm_iQDensityMatrix, "Probabilities" | "Diagonal"] := Diagonal @ Fir
 QMeasurement[state_?QStateQ, obs_] := QExpectationValue[state, obs];
 
 
-ShannonEntropy[probs_, base_:2] := DeleteCases[probs, 0] // -Total[# * Log[2, #]] &;
+ShannonEntropy[probs_, base_:2] := DeleteCases[probs, _?PossibleZeroQ] // -Total[# * Log[2, #]] &;
+VonNeumannEntropy[dm_, base_:2] := ShannonEntropy[Eigenvalues @ dm, base];
 
 
 (* Protect all package symbols *)
