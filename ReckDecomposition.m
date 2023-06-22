@@ -54,7 +54,14 @@ listOfIndicesToRemove[matrixDimension_] := Flatten[#,1]& @ Table[
   {col, Reverse @ Range[row - 1]}
 ];
 
+(*
+Give a unitary matrix U (representing an interferometer), computes the sequence of 2x2 unitaries
+to apply on the RHS of U, that produce a diagonal matrix, following the ideas in Reck 1996.
 
+The function produces two outputs:
+1) The diagonal matrix that remains after multiplying U by the 2x2 unitaries (containing the remaining phases)
+2) A list of elements of the form `{m, modes}`, where `m` is the 2x2 unitary, and `modes` is a list of two indices specifying in which modes `m` operates
+*)
 reckDecompositionUnitariesFromUnitary[unitary_] := Fold[
     With[{output = removeElementFromUnitary[#1, #2]},
         Sow[output[[2]]];
