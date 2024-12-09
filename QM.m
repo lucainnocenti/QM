@@ -836,7 +836,7 @@ QFidelity[ket1_iQState, ket2_iQState] := QFidelity[
 
 QFidelity[state1_][state2_] := QFidelity[state1, state2];
 
-QTraceDistance[mat1_?MatrixQ, mat2_?MatrixQ] := Total @ SingularValueList[mat1 - mat2];
+QTraceDistance[mat1_?MatrixQ, mat2_?MatrixQ] := Total @ SingularValueList[mat1 - mat2] / 2;
 
 QTraceDistance[dm1_?QStateQ, dm2_?QStateQ] := QTraceDistance[First @ dm1, First @ dm2];
 QTraceDistance @ OrderlessPatternSequence[dm_?QStateQ, matrix_?MatrixQ] := QTraceDistance[First @ dm, matrix];
