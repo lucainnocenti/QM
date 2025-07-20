@@ -115,6 +115,8 @@ QExpectationValue[state, observable] returns the expectation value corresponding
 ShannonEntropy::usage = "ShannonEntropy[probs] gives the Shannon entropy corresponding to the given input (discrete) probability distribution.";
 VonNeumannEntropy;
 
+QKetLocalProject;
+
 (* Notable quantum states*)
 
 Begin["`Private`"];
@@ -868,6 +870,19 @@ QMeasurement[ket_iQState, "Probabilities" | "Diagonal"] := Abs[#]^2& @ First @ k
 QMeasurement[dm_iQDensityMatrix, "Probabilities" | "Diagonal"] := Diagonal @ First @ dm;
 (* unless special rules are found, we assume they want expectation values *)
 QMeasurement[state_?QStateQ, obs_] := QExpectationValue[state, obs];
+
+QKetLocalProject[vector_List, dims : {__Integer}, targetDims : {__Integer}, otherket_List] := With[{
+    ketAsTP = ArrayReshape[vector, dims],
+    otherketAsTP = ArrayReshape[otherket, dims[[targetDims]]]
+  },
+  TensorContract[
+    TensorProduct[ketAsTP, otherketAsTP],
+    Table[
+      {dimIdx, dimIdx + Length@dims},
+      {dimIdx, targetDims}
+    ]
+  ]
+];
 
 
 ShannonEntropy[probs_, base_:2] := DeleteCases[probs, _?PossibleZeroQ] // -Total[# * Log[2, #]] &;
