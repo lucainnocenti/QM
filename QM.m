@@ -503,6 +503,8 @@ QTensorProduct[ket_iQState, dm_iQDensityMatrix] := QTensorProduct[
   QStateToDensityMatrix @ ket, dm
 ];
 
+QTensorProduct[ket_List, otherket_List] := Flatten @ KroneckerProduct[ket, otherket];
+
 QTensorProduct[args__] := QTensorProduct[{args}[[1]], QTensorProduct[Sequence @@ ({args}[[2;;]])]] /; Length @ {args} > 2;
 
 
@@ -878,8 +880,8 @@ QKetLocalProject[vector_List, dims : {__Integer}, targetDims : {__Integer}, othe
   TensorContract[
     TensorProduct[ketAsTP, otherketAsTP],
     Table[
-      {dimIdx, dimIdx + Length@dims},
-      {dimIdx, targetDims}
+      {targetDims[[idx]], Length @ dims + idx},
+      {idx, Length @ targetDims}
     ]
   ]
 ];
