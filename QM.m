@@ -112,6 +112,10 @@ QMeasurement;
 QExpectationValue::usage = "\
 QExpectationValue[state, observable] returns the expectation value corresponding to the given state and observable.";
 
+QPauliDecompose::usage = "\
+QPauliDecompose[dm] decomposes the input density matrix into a vector of Pauli operators, returning the coefficients of the decomposition.\
+QPauliDecompose[ket] decomposes the input ket state into a vector of Pauli operators, returning the coefficients of the decomposition.";
+
 ShannonEntropy::usage = "ShannonEntropy[probs] gives the Shannon entropy corresponding to the given input (discrete) probability distribution.";
 VonNeumannEntropy;
 
@@ -868,6 +872,27 @@ QMeasurement[ket_iQState, "Probabilities" | "Diagonal"] := Abs[#]^2& @ First @ k
 QMeasurement[dm_iQDensityMatrix, "Probabilities" | "Diagonal"] := Diagonal @ First @ dm;
 (* unless special rules are found, we assume they want expectation values *)
 QMeasurement[state_?QStateQ, obs_] := QExpectationValue[state, obs];
+
+pauliMatrices = PauliMatrix /@ Range[0, 3];
+pauliMatricesManyQubits[1] = pauliMatrices;
+pauliMatricesManyQubits[numQubits_Integer] := Outer[
+  KroneckerProduct,
+  Sequence @@ ConstantArray[pauliMatrices, {numQubits}],
+  1
+] // Flatten[#, numQubits - 1] &;
+
+QPauliDecompose::invalidInput = "The input must be a valid quantum state or density matrix.";
+QPauliDecompose::wrongKetDim = "The input vector must have length 2^n for some n; I got `1` instead.";
+(* return error if ket vector has wrong length *)
+QPauliDecompose[state_?VectorQ] := (
+  Message[QPauliDecompose::wrongKetDim, Length @ state];
+  HoldForm @ QPauliDecompose[state]
+) /; Not @ IntegerQ @ Log[2, Length @ state];
+
+QPauliDecompose[state_?VectorQ] := Table[
+  Dot[Conjugate @ state, pauli, state],
+  {pauli, pauliMatricesManyQubits[Log[2, Length @ state]]}
+];
 
 
 ShannonEntropy[probs_, base_:2] := DeleteCases[probs, _?PossibleZeroQ] // -Total[# * Log[2, #]] &;
