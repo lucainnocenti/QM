@@ -119,6 +119,8 @@ QPauliDecompose[ket] decomposes the input ket state into a vector of Pauli opera
 ShannonEntropy::usage = "ShannonEntropy[probs] gives the Shannon entropy corresponding to the given input (discrete) probability distribution.";
 VonNeumannEntropy;
 
+QKetLocalProject;
+
 (* Notable quantum states*)
 
 Begin["`Private`"];
@@ -505,6 +507,8 @@ QTensorProduct[ket_iQState, dm_iQDensityMatrix] := QTensorProduct[
   QStateToDensityMatrix @ ket, dm
 ];
 
+QTensorProduct[ket_List, otherket_List] := Flatten @ KroneckerProduct[ket, otherket];
+
 QTensorProduct[args__] := QTensorProduct[{args}[[1]], QTensorProduct[Sequence @@ ({args}[[2;;]])]] /; Length @ {args} > 2;
 
 
@@ -888,10 +892,25 @@ QPauliDecompose[state_?VectorQ] := (
   Message[QPauliDecompose::wrongKetDim, Length @ state];
   HoldForm @ QPauliDecompose[state]
 ) /; Not @ IntegerQ @ Log[2, Length @ state];
-
+(* main decomposition routine for vectors *)
 QPauliDecompose[state_?VectorQ] := Table[
   Dot[Conjugate @ state, pauli, state],
   {pauli, pauliMatricesManyQubits[Log[2, Length @ state]]}
+];
+
+
+
+QKetLocalProject[vector_List, dims : {__Integer}, targetDims : {__Integer}, otherket_List] := With[{
+    ketAsTP = ArrayReshape[vector, dims],
+    otherketAsTP = ArrayReshape[otherket, dims[[targetDims]]]
+  },
+  TensorContract[
+    TensorProduct[ketAsTP, otherketAsTP],
+    Table[
+      {targetDims[[idx]], Length @ dims + idx},
+      {idx, Length @ targetDims}
+    ]
+  ]
 ];
 
 
