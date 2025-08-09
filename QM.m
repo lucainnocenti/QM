@@ -887,6 +887,7 @@ pauliMatricesManyQubits[numQubits_Integer] := Outer[
 
 QPauliDecompose::invalidInput = "The input must be a valid quantum state or density matrix.";
 QPauliDecompose::wrongKetDim = "The input vector must have length 2^n for some n; I got `1` instead.";
+QPauliDecompose::wrongDmDim = "The input density matrix must have dimensions 2^n x 2^n for some n; I got `1` instead.";
 (* return error if ket vector has wrong length *)
 QPauliDecompose[state_?VectorQ] := (
   Message[QPauliDecompose::wrongKetDim, Length @ state];
@@ -896,6 +897,15 @@ QPauliDecompose[state_?VectorQ] := (
 QPauliDecompose[state_?VectorQ] := Table[
   Dot[Conjugate @ state, pauli, state],
   {pauli, pauliMatricesManyQubits[Log[2, Length @ state]]}
+];
+(* decomposition routine for density matrices *)
+QPauliDecompose[state_?MatrixQ] := (
+  Message[QPauliDecompose::wrongDmDim, Length @ state];
+  HoldForm @ QPauliDecompose[state]
+) /; Not @ IntegerQ @ Log[2, Length @ state] && Not @ SquareMatrixQ @ state;
+QPauliDecompose[dm_?MatrixQ] := Table[
+  Tr[pauli . dm],
+  {pauli, pauliMatricesManyQubits[Log[2, Length @ dm]]}
 ];
 
 
